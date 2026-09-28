@@ -397,7 +397,39 @@ build_native() {
     echo "       - DMG 安装磁盘: $DIR/build/TaskCleaner.dmg"
 }
 
+build_bundle_only() {
+    echo "[编译] 正在组装本机 App Bundle (跳过 DMG 打包)..."
+    local bin
+    bin="$(locate_gui_binary "$DIR/.build" "")"
+    if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+        swift build -c release
+        bin="$(locate_gui_binary "$DIR/.build" "")"
+    fi
+    if [ -z "$bin" ] || [ ! -f "$bin" ]; then
+        echo "[错误] 未找到编译完成的 TaskCleanerGUI 二进制文件"
+        exit 1
+    fi
+    assemble_bundle "native" "$bin" "$DIR/build/TaskCleaner.app"
+    echo "[完成] App 应用目录: $DIR/build/TaskCleaner.app"
+}
+
+install_local() {
+    build_bundle_only
+    echo "[安装] 正在安装至 /Applications/TaskCleaner.app..."
+    pkill -f TaskCleanerGUI 2>/dev/null || true
+    sleep 0.5
+    rm -rf "/Applications/TaskCleaner.app"
+    cp -R "$DIR/build/TaskCleaner.app" "/Applications/TaskCleaner.app"
+    echo "[成功] 已成功安装至 /Applications/TaskCleaner.app"
+}
+
 case "$TARGET" in
+    bundle|app)
+        build_bundle_only
+        ;;
+    install)
+        install_local
+        ;;
     arm64)
         build_arm64
         rm -rf "$DIR/build/TaskCleaner.app"
@@ -425,7 +457,7 @@ case "$TARGET" in
         ;;
     *)
         echo "[错误] 未知架构目标: $TARGET"
-        echo "支持选项: arm64 | x86_64 | amd64 | universal | all | native"
+        echo "支持选项: install | bundle | arm64 | x86_64 | amd64 | universal | all | native"
         exit 1
         ;;
 esac
