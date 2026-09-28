@@ -1,22 +1,23 @@
-name: Automated Release
+name: Build and Release
 
 on:
   schedule:
-    # 每周日 UTC 02:00 (北京时间 10:00) 定时自动打包 Release
+    # 每周日 UTC 02:00 (北京时间 10:00) 定时编译 pre 版本并推送 tag (不发布 Release)
     - cron: '0 2 * * 0'
   workflow_dispatch:
     inputs:
       tag:
-        description: '发布版本标签 (如 v0.1.0，留空则自动按日期生成)'
+        description: '发布版本标签 (如 v1.0.1 或 pre-v1.0.1，留空则自动按日期生成)'
         required: false
         default: ''
+      publish_release:
+        description: '是否发布到 GitHub Release (默认发布；若取消勾选则仅打 tag 不建 Release)'
+        type: boolean
+        default: true
       prerelease:
         description: '是否标记为预发布 (Pre-release)'
         type: boolean
         default: false
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
@@ -80,27 +81,54 @@ jobs:
         id: meta
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
-            TAG_NAME="release-$(date +'%Y.%m.%d')"
-            RELEASE_TITLE="Task Cleaner Scheduled Release $(date +'%Y.%m.%d')"
-            IS_PRE="false"
+            TAG_NAME="pre-$(date +'%Y.%m.%d')"
+            RELEASE_TITLE="Task Cleaner Pre-release ${TAG_NAME}"
+            PUBLISH_RELEASE="false"
+            IS_PRE="true"
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             if [ -n "${{ github.event.inputs.tag }}" ]; then
               TAG_NAME="${{ github.event.inputs.tag }}"
             else
-              TAG_NAME="release-$(date +'%Y.%m.%d')"
+              TAG_NAME="v$(date +'%Y.%m.%d')"
             fi
             RELEASE_TITLE="Task Cleaner Release ${TAG_NAME}"
+            PUBLISH_RELEASE="${{ github.event.inputs.publish_release }}"
             IS_PRE="${{ github.event.inputs.prerelease }}"
           else
-            TAG_NAME="${GITHUB_REF#refs/tags/}"
+            TAG_NAME="build-$(date +'%Y.%m.%d')"
             RELEASE_TITLE="Task Cleaner ${TAG_NAME}"
+            PUBLISH_RELEASE="false"
             IS_PRE="false"
           fi
           echo "tag=${TAG_NAME}" >> $GITHUB_OUTPUT
           echo "title=${RELEASE_TITLE}" >> $GITHUB_OUTPUT
+          echo "publish_release=${PUBLISH_RELEASE}" >> $GITHUB_OUTPUT
           echo "prerelease=${IS_PRE}" >> $GITHUB_OUTPUT
 
+      - name: Create and Push Git Tag
+        working-directory: macos-task-cleaner-gui
+        run: |
+          TAG_NAME="${{ steps.meta.outputs.tag }}"
+          echo "[INFO] Configuring git user for tag push..."
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -f -a "${TAG_NAME}" -m "Auto tag: ${TAG_NAME}"
+          echo "[INFO] Pushing tag ${TAG_NAME} to remote..."
+          git push origin "${TAG_NAME}" --force || echo "[WARN] Git push tag returned non-zero status."
+
+      - name: Upload Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskcleaner-${{ steps.meta.outputs.tag }}
+          path: |
+            macos-task-cleaner-gui/build/*.dmg
+            macos-task-cleaner-gui/build/*.dmg.sha256
+            macos-task-cleaner-gui/build/*.zip
+            macos-task-cleaner-gui/build/*.zip.sha256
+          retention-days: 14
+
       - name: Publish GitHub Release
+        if: steps.meta.outputs.publish_release == 'true'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
