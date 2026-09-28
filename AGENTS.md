@@ -84,20 +84,45 @@ This document defines the architectural conventions, engineering rules, and hard
 
 ---
 
-## 4. Build & Local Testing Conventions
+## 4. Build & Verification Tiering (CRITICAL EFFICIENCY RULE)
 
-1. **Local Development Builds (Apple Silicon Focus)**:
-   * When testing or verifying changes locally, build for Apple Silicon (`arm64`) only.
-   * Quick compile check: `swift build`
-   * App bundle packaging: `./scripts/build_app.sh arm64`
-   * Do not run multi-architecture or universal packaging unless specifically requested for release distribution.
+1. **Daily Development & UI Micro-adjustments (Level 1 - STRICT)**:
+   * For syntax check, type safety, and view logic verification, **ONLY execute `swift build`**.
+   * On Apple Silicon, `swift build` compiles incrementally in 2-4 seconds.
+   * **STRICTLY PROHIBITED**: Never run `./scripts/build_app.sh` during iterative UI styling, bug fixing, or feature development. `build_app.sh` invokes `create-dmg` which triggers macOS Finder AppleScript automation (`osascript`), causing 3-5 minute unhandled UI hangs in headless/background execution.
 
-2. **Application Installation**:
-   * When updating `/Applications/TaskCleaner.app`, ensure running instances are terminated (`pkill -f TaskCleanerGUI || true`), replace the bundle, and re-launch via `open /Applications/TaskCleaner.app`.
+2. **Milestone / Release Packaging (Level 3 - EXPLICIT ONLY)**:
+   * Only run `./scripts/build_app.sh arm64` when the user explicitly requests full DMG release packaging or a production distribution binary.
+   * If running `build_app.sh` in the background, never poll `manage_task status`; wait for reactive completion notification.
+
+3. **Application Installation Throttling**:
+   * Do NOT automatically terminate (`pkill -f TaskCleanerGUI`) and overwrite `/Applications/TaskCleaner.app` on minor UI/logic iterations.
+   * Only deploy to `/Applications` when the user explicitly instructs to run/test the installed app in the system menu bar.
 
 ---
 
-## 5. Licensing & Commercial Policy
+## 5. Internationalization (I18n) Update Protocol
+
+* `Sources/I18n.swift` defines 24 languages across four synchronized zones: `enum I18nKey`, `.en`, `.zhHans`, and `.zhHant`.
+* **Prohibited**: Never perform 4 separate view-and-replace round-trips for each dictionary section.
+* **Mandated**: 
+  - Either run the automated helper: `python3 scripts/update_i18n.py --key <key> --en "..." --zh "..."` (if available);
+  - Or prepare all 4 updates in memory and perform them in a single, batched replacement block to avoid multiple network round-trips.
+
+---
+
+## 6. Documentation & Version Control Throttling
+
+* **Inheritance & Architecture Docs**: 
+  - Do NOT rewrite or re-export `PROJECT_INHERITANCE_GUIDE.md` or large summary documents for minor UI tweaks or single-property additions.
+  - Only update backlog items upon full completion of a major milestone (e.g. Backlog #2, Backlog #3).
+* **Git Hygiene**:
+  - Avoid redundant polling commands (e.g. running `git status -s` multiple times consecutively without edits).
+  - Perform clean, single-point commits only when a feature is functionally complete and verified.
+
+---
+
+## 7. Licensing & Commercial Policy
 
 * **Dual-Licensing Model**:
   * Open-source under **GNU AGPLv3**. Any fork or network service utilizing this code must remain AGPLv3.
