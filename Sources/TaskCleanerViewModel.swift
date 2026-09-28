@@ -18,6 +18,34 @@ public class TaskCleanerViewModel: ObservableObject {
     @Published public var statusMessage: String?
     @Published public var selectedTab: CleanerTab = .targets
     @Published public var initialTargetCapacity: Int = 3
+    @Published public var cliStatus: CliStatus = .notInstalled
+    @Published public var preferredTerminal: TerminalEmulator = CliIntegrationManager.shared.preferredTerminal
+
+    private let sortModeKey = "TaskCleaner_ProcessSortMode"
+    @Published public var sortMode: ProcessSortMode {
+        didSet {
+            UserDefaults.standard.set(sortMode.rawValue, forKey: sortModeKey)
+        }
+    }
+
+    private let showDetailedMetricsKey = "TaskCleaner_ShowDetailedMetrics"
+    @Published public var showDetailedMetrics: Bool {
+        didSet {
+            UserDefaults.standard.set(showDetailedMetrics, forKey: showDetailedMetricsKey)
+        }
+    }
+
+    private let showSortButtonKey = "TaskCleaner_ShowSortButton"
+    @Published public var showSortButton: Bool {
+        didSet {
+            UserDefaults.standard.set(showSortButton, forKey: showSortButtonKey)
+        }
+    }
+
+    public var isCliInstalled: Bool {
+        if case .installed = cliStatus { return true }
+        return false
+    }
 
     public static weak var shared: TaskCleanerViewModel?
 
@@ -28,6 +56,21 @@ public class TaskCleanerViewModel: ObservableObject {
     private var workspaceObservers: [NSObjectProtocol] = []
 
     public init() {
+        let storedSort = UserDefaults.standard.string(forKey: sortModeKey) ?? ProcessSortMode.composite.rawValue
+        self.sortMode = ProcessSortMode(rawValue: storedSort) ?? .composite
+
+        if UserDefaults.standard.object(forKey: showDetailedMetricsKey) == nil {
+            self.showDetailedMetrics = true
+        } else {
+            self.showDetailedMetrics = UserDefaults.standard.bool(forKey: showDetailedMetricsKey)
+        }
+
+        if UserDefaults.standard.object(forKey: showSortButtonKey) == nil {
+            self.showSortButton = true
+        } else {
+            self.showSortButton = UserDefaults.standard.bool(forKey: showSortButtonKey)
+        }
+
         Self.shared = self
         _ = GlobalShortcutManager.shared
 
@@ -52,6 +95,7 @@ public class TaskCleanerViewModel: ObservableObject {
         }
         menuObservers = [beginObs, endObs]
 
+        refreshCliStatus()
         refresh(silent: true)
     }
 
@@ -90,10 +134,55 @@ public class TaskCleanerViewModel: ObservableObject {
                 return
             }
 
-            if self.summary != result {
-                self.summary = result
-                self.updateInitialCapacityIfNeeded(from: result)
+            guard let result = result else {
+                if !silent { self.isWorking = false }
+                return
             }
+
+            let allPids = (result.targets.map { Int32($0.pid) } + result.protected_apps.map { Int32($0.pid) })
+            let telemetryMap = await Task.detached {
+                ProcessTelemetrySampler.shared.sampleBatch(pids: allPids)
+            }.value
+
+            ProcessTelemetrySampler.shared.pruneExitedProcesses(activePids: Set(allPids))
+
+            let enrichedTargets = result.targets.map { target -> TargetAppEntry in
+                var t = target
+                if let telem = telemetryMap[Int32(target.pid)] {
+                    t.memory_bytes = telem.memoryBytes
+                    t.cpu_percent = telem.cpuPercent
+                    t.window_count = telem.windowCount
+                    t.composite_score = telem.compositeScore
+                }
+                return t
+            }
+            let enrichedProtected = result.protected_apps.map { app -> ProtectedAppEntry in
+                var p = app
+                if let telem = telemetryMap[Int32(app.pid)] {
+                    p.memory_bytes = telem.memoryBytes
+                    p.cpu_percent = telem.cpuPercent
+                    p.window_count = telem.windowCount
+                    p.composite_score = telem.compositeScore
+                }
+                return p
+            }
+
+            let enrichedSummary = DryRunSummary(
+                scanned_total: result.scanned_total,
+                protected_count: result.protected_count,
+                target_count: result.target_count,
+                scan_duration_ms: result.scan_duration_ms,
+                config_source: result.config_source,
+                protected_apps: enrichedProtected,
+                targets: enrichedTargets
+            )
+
+            if self.summary != enrichedSummary {
+                self.summary = enrichedSummary
+                self.updateInitialCapacityIfNeeded(from: enrichedSummary)
+            }
+
+            self.refreshCliStatus()
 
             if !silent {
                 self.isWorking = false
@@ -172,6 +261,87 @@ public class TaskCleanerViewModel: ObservableObject {
             nc.removeObserver(obs)
         }
         workspaceObservers.removeAll()
+    }
+
+    // MARK: - 多维指标排序系统 (5 种排序模式)
+    public var sortedTargets: [TargetAppEntry] {
+        guard let list = summary?.targets else { return [] }
+        return sortTargets(list, mode: sortMode)
+    }
+
+    public var sortedProtected: [ProtectedAppEntry] {
+        guard let list = summary?.protected_apps else { return [] }
+        return sortProtected(list, mode: sortMode)
+    }
+
+    private func sortTargets(_ list: [TargetAppEntry], mode: ProcessSortMode) -> [TargetAppEntry] {
+        switch mode {
+        case .composite:
+            return list.sorted {
+                let s0 = $0.composite_score ?? 0.0
+                let s1 = $1.composite_score ?? 0.0
+                if abs(s0 - s1) > 0.001 { return s0 > s1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .memory:
+            return list.sorted {
+                let m0 = $0.memory_bytes ?? 0
+                let m1 = $1.memory_bytes ?? 0
+                if m0 != m1 { return m0 > m1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .cpu:
+            return list.sorted {
+                let c0 = $0.cpu_percent ?? 0.0
+                let c1 = $1.cpu_percent ?? 0.0
+                if abs(c0 - c1) > 0.05 { return c0 > c1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .windows:
+            return list.sorted {
+                let w0 = $0.window_count ?? 0
+                let w1 = $1.window_count ?? 0
+                if w0 != w1 { return w0 > w1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .defaultName:
+            return list.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
+    }
+
+    private func sortProtected(_ list: [ProtectedAppEntry], mode: ProcessSortMode) -> [ProtectedAppEntry] {
+        switch mode {
+        case .composite:
+            return list.sorted {
+                let s0 = $0.composite_score ?? 0.0
+                let s1 = $1.composite_score ?? 0.0
+                if abs(s0 - s1) > 0.001 { return s0 > s1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .memory:
+            return list.sorted {
+                let m0 = $0.memory_bytes ?? 0
+                let m1 = $1.memory_bytes ?? 0
+                if m0 != m1 { return m0 > m1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .cpu:
+            return list.sorted {
+                let c0 = $0.cpu_percent ?? 0.0
+                let c1 = $1.cpu_percent ?? 0.0
+                if abs(c0 - c1) > 0.05 { return c0 > c1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .windows:
+            return list.sorted {
+                let w0 = $0.window_count ?? 0
+                let w1 = $1.window_count ?? 0
+                if w0 != w1 { return w0 > w1 }
+                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
+            }
+        case .defaultName:
+            return list.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+        }
     }
 
     // MARK: - 核心执行操作
@@ -281,55 +451,43 @@ public class TaskCleanerViewModel: ObservableObject {
         }
     }
 
-    // MARK: - 安装 CLI 到系统 PATH
-    public func installCliCommand() {
-        let fileManager = FileManager.default
-        let home = fileManager.homeDirectoryForCurrentUser
-        let localBin = home.appendingPathComponent(".local/bin")
-        let targetSymlinkMtc = localBin.appendingPathComponent("mtc")
-        let targetSymlinkTc = localBin.appendingPathComponent("taskcleaner")
+    // MARK: - CLI 集成管理
+    public func refreshCliStatus() {
+        self.cliStatus = CliIntegrationManager.shared.detectCliStatus()
+        self.preferredTerminal = CliIntegrationManager.shared.preferredTerminal
+    }
 
-        let appInternal = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/mtc").path
-        let standardApp = "/Applications/TaskCleaner.app/Contents/MacOS/mtc"
-
-        let sourceMtc: String
-        if fileManager.isExecutableFile(atPath: standardApp) {
-            sourceMtc = standardApp
-        } else if fileManager.isExecutableFile(atPath: appInternal) {
-            sourceMtc = appInternal
-        } else if let found = MTCBridge.shared.findMTCBinary(), found != targetSymlinkMtc.path {
-            sourceMtc = found
-        } else {
-            self.statusMessage = I18n.shared.t(.status_cli_install_failed)
-            return
-        }
-
+    public func installCli(to location: CliInstallLocation = .userLocalBin) {
         do {
-            if !fileManager.fileExists(atPath: localBin.path) {
-                try fileManager.createDirectory(at: localBin, withIntermediateDirectories: true, attributes: nil)
-            }
-
-            // 创建/更新 mtc 软链接
-            if fileManager.fileExists(atPath: targetSymlinkMtc.path) || (try? fileManager.destinationOfSymbolicLink(atPath: targetSymlinkMtc.path)) != nil {
-                try? fileManager.removeItem(at: targetSymlinkMtc)
-            }
-            try fileManager.createSymbolicLink(at: targetSymlinkMtc, withDestinationURL: URL(fileURLWithPath: sourceMtc))
-
-            // 创建/更新 taskcleaner 别名软链接
-            if fileManager.fileExists(atPath: targetSymlinkTc.path) || (try? fileManager.destinationOfSymbolicLink(atPath: targetSymlinkTc.path)) != nil {
-                try? fileManager.removeItem(at: targetSymlinkTc)
-            }
-            try fileManager.createSymbolicLink(at: targetSymlinkTc, withDestinationURL: URL(fileURLWithPath: sourceMtc))
-
+            let (symlinkPath, isInPath) = try CliIntegrationManager.shared.installSymlink(to: location)
+            refreshCliStatus()
             self.statusMessage = I18n.shared.t(.status_cli_installed)
 
             let alert = NSAlert()
-            alert.messageText = I18n.shared.t(.install_cli_success_title)
-            alert.informativeText = I18n.shared.format(.install_cli_success_desc, targetSymlinkMtc.path)
-            alert.alertStyle = .informational
-            alert.addButton(withTitle: I18n.shared.t(.btn_ready))
-            NSApp.activate(ignoringOtherApps: true)
-            alert.runModal()
+            if !isInPath {
+                alert.messageText = I18n.shared.t(.install_cli_path_missing_title)
+                alert.informativeText = I18n.shared.format(.install_cli_path_missing_desc, symlinkPath)
+                alert.alertStyle = .warning
+                alert.addButton(withTitle: I18n.shared.t(.btn_add_to_zshrc))
+                alert.addButton(withTitle: I18n.shared.t(.btn_ready))
+
+                NSApp.activate(ignoringOtherApps: true)
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    if CliIntegrationManager.shared.appendPathToZshrcIfNeeded(location: location) {
+                        self.statusMessage = I18n.shared.t(.status_zshrc_updated)
+                        refreshCliStatus()
+                    }
+                }
+            } else {
+                alert.messageText = I18n.shared.t(.install_cli_success_title)
+                alert.informativeText = I18n.shared.format(.install_cli_success_desc, symlinkPath)
+                alert.alertStyle = .informational
+                alert.addButton(withTitle: I18n.shared.t(.btn_ready))
+
+                NSApp.activate(ignoringOtherApps: true)
+                alert.runModal()
+            }
 
             Task {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
@@ -337,10 +495,56 @@ public class TaskCleanerViewModel: ObservableObject {
             }
         } catch {
             self.statusMessage = "\(I18n.shared.t(.status_cli_install_failed)): \(error.localizedDescription)"
+            refreshCliStatus()
             Task {
                 try? await Task.sleep(nanoseconds: 3_000_000_000)
                 self.statusMessage = nil
             }
+        }
+    }
+
+    public func installCliCommand() {
+        installCli(to: .userLocalBin)
+    }
+
+    public func uninstallCli() {
+        do {
+            try CliIntegrationManager.shared.uninstallSymlinks()
+            refreshCliStatus()
+            self.statusMessage = I18n.shared.t(.status_cli_uninstalled)
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self.statusMessage = nil
+            }
+        } catch {
+            self.statusMessage = error.localizedDescription
+            Task {
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                self.statusMessage = nil
+            }
+        }
+    }
+
+    public var installedTerminals: [TerminalEmulator] {
+        CliIntegrationManager.shared.installedTerminals
+    }
+
+    public func setPreferredTerminal(_ emulator: TerminalEmulator) {
+        CliIntegrationManager.shared.setPreferredTerminal(emulator)
+        self.preferredTerminal = emulator
+    }
+
+    public func testCliInTerminal(emulator: TerminalEmulator? = nil) {
+        CliIntegrationManager.shared.testInTerminal(emulator: emulator)
+    }
+
+    public func revealCliInFinder() {
+        if case .installed(let loc, _, _) = cliStatus {
+            CliIntegrationManager.shared.revealInFinder(location: loc)
+        } else if case .broken(let loc, _) = cliStatus {
+            CliIntegrationManager.shared.revealInFinder(location: loc)
+        } else {
+            CliIntegrationManager.shared.revealInFinder(location: .userLocalBin)
         }
     }
 

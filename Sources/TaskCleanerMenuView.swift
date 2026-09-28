@@ -67,6 +67,10 @@ public struct TaskCleanerMenuView: View {
 
             Spacer()
 
+            if viewModel.showSortButton {
+                sortMenuButton
+            }
+
             // 刚性 24x24 点击锚点，内部居中自旋，杜绝任何位移跳跃
             Button(action: {
                 viewModel.refresh()
@@ -90,6 +94,52 @@ public struct TaskCleanerMenuView: View {
             .help(i18n.t(.header_refresh_help))
         }
         .frame(height: 24)
+    }
+
+    // 顶栏快速排序与显示配置菜单
+    private var sortMenuButton: some View {
+        Menu {
+            ForEach(ProcessSortMode.allCases) { mode in
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        viewModel.sortMode = mode
+                    }
+                }) {
+                    if viewModel.sortMode == mode {
+                        Text("\(mode.localizedName(in: i18n))  ✓")
+                    } else {
+                        Text(mode.localizedName(in: i18n))
+                    }
+                }
+            }
+
+            Divider()
+
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.showDetailedMetrics.toggle()
+                }
+            }) {
+                if viewModel.showDetailedMetrics {
+                    Text("\(i18n.t(.menu_show_detailed_metrics))  ✓")
+                } else {
+                    Text(i18n.t(.menu_show_detailed_metrics))
+                }
+            }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(viewModel.sortMode != .defaultName ? Color(nsColor: .systemBlue).opacity(0.08) : Color.clear)
+                Image(systemName: "arrow.up.arrow.down")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(viewModel.sortMode != .defaultName ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary)
+            }
+            .frame(width: 24, height: 24, alignment: .center)
+            .contentShape(Rectangle())
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .help("\(i18n.t(.sort_by)): \(viewModel.sortMode.localizedName(in: i18n))")
     }
 
     // MARK: - 首次开机自启动引导卡片 (Apple 原生质感，支持立即启用与稍后忽略)
@@ -332,7 +382,7 @@ public struct TaskCleanerMenuView: View {
     }
 
     private func targetAppsList(minHeight: CGFloat) -> some View {
-        let targets = viewModel.summary?.targets ?? []
+        let targets = viewModel.sortedTargets
         return VStack(spacing: 0) {
             if targets.isEmpty {
                 VStack(spacing: 5) {
@@ -381,6 +431,8 @@ public struct TaskCleanerMenuView: View {
                 ForEach(Array(targets.enumerated()), id: \.element.pid) { index, app in
                     NativeTargetRow(
                         app: app,
+                        sortMode: viewModel.sortMode,
+                        showDetailedMetrics: viewModel.showDetailedMetrics,
                         isWorking: viewModel.isWorking,
                         onTerminate: {
                             viewModel.terminateTarget(app)
@@ -412,7 +464,7 @@ public struct TaskCleanerMenuView: View {
     }
 
     private func protectedAppsList(minHeight: CGFloat) -> some View {
-        let protectedList = viewModel.summary?.protected_apps ?? []
+        let protectedList = viewModel.sortedProtected
         return VStack(spacing: 0) {
             if protectedList.isEmpty {
                 Text(i18n.t(.empty_protected))
@@ -424,6 +476,8 @@ public struct TaskCleanerMenuView: View {
                 ForEach(Array(protectedList.enumerated()), id: \.element.pid) { index, app in
                     NativeProtectedRow(
                         app: app,
+                        sortMode: viewModel.sortMode,
+                        showDetailedMetrics: viewModel.showDetailedMetrics,
                         isWorking: viewModel.isWorking,
                         onRemove: {
                             viewModel.unprotectApp(app)
@@ -453,8 +507,8 @@ public struct TaskCleanerMenuView: View {
 
     // 全部活动进程浏览视图
     private func allAppsList(minHeight: CGFloat) -> some View {
-        let targets = viewModel.summary?.targets ?? []
-        let protectedList = viewModel.summary?.protected_apps ?? []
+        let targets = viewModel.sortedTargets
+        let protectedList = viewModel.sortedProtected
 
         return VStack(spacing: 0) {
             if targets.isEmpty && protectedList.isEmpty {
@@ -479,6 +533,8 @@ public struct TaskCleanerMenuView: View {
                     ForEach(Array(targets.enumerated()), id: \.element.pid) { index, app in
                         NativeTargetRow(
                             app: app,
+                            sortMode: viewModel.sortMode,
+                            showDetailedMetrics: viewModel.showDetailedMetrics,
                             isWorking: viewModel.isWorking,
                             onTerminate: {
                                 viewModel.terminateTarget(app)
@@ -525,6 +581,8 @@ public struct TaskCleanerMenuView: View {
                     ForEach(Array(protectedList.enumerated()), id: \.element.pid) { index, app in
                         NativeProtectedRow(
                             app: app,
+                            sortMode: viewModel.sortMode,
+                            showDetailedMetrics: viewModel.showDetailedMetrics,
                             isWorking: viewModel.isWorking,
                             onRemove: {
                                 viewModel.unprotectApp(app)
@@ -621,10 +679,141 @@ public struct TaskCleanerMenuView: View {
 
                     Divider()
 
-                    Button(action: {
-                        viewModel.installCliCommand()
-                    }) {
-                        Label(i18n.t(.menu_install_cli), systemImage: "terminal")
+                    Menu {
+                        // 1. 状态与位置展示
+                        switch viewModel.cliStatus {
+                        case .installed(let location, _, let inPath):
+                            Text("\(i18n.t(.cli_status_installed)): \(location.mtcSymlinkURL.path)")
+                            if !inPath {
+                                Text("(\(i18n.t(.install_cli_path_missing_title)))")
+                            }
+                        case .broken(let location, _):
+                            Text("\(i18n.t(.cli_status_broken)): \(location.mtcSymlinkURL.path)")
+                        case .notInstalled:
+                            Text(i18n.t(.cli_status_not_installed))
+                        }
+
+                        Divider()
+
+                        // 2. 安装与重设操作
+                        Button(action: {
+                            viewModel.installCli(to: .userLocalBin)
+                        }) {
+                            Label(
+                                i18n.t(.menu_install_cli_user),
+                                systemImage: "person"
+                            )
+                        }
+
+                        if CliIntegrationManager.shared.isLocationWritable(.systemUsrLocalBin) {
+                            Button(action: {
+                                viewModel.installCli(to: .systemUsrLocalBin)
+                            }) {
+                                Label(
+                                    i18n.t(.menu_install_cli_system),
+                                    systemImage: "gearshape.2"
+                                )
+                            }
+                        }
+
+                        // 3. 快捷运维与测试
+                        if viewModel.isCliInstalled {
+                            Divider()
+
+                            Button(action: {
+                                viewModel.testCliInTerminal()
+                            }) {
+                                Label(
+                                    i18n.format(.menu_test_in_terminal_format, viewModel.preferredTerminal.displayName),
+                                    systemImage: "play.circle"
+                                )
+                            }
+
+                            if viewModel.installedTerminals.count > 1 {
+                                Menu {
+                                    ForEach(viewModel.installedTerminals) { term in
+                                        Button(action: {
+                                            viewModel.setPreferredTerminal(term)
+                                        }) {
+                                            if viewModel.preferredTerminal == term {
+                                                Text("\(term.displayName)  ✓")
+                                            } else {
+                                                Text(term.displayName)
+                                            }
+                                        }
+                                    }
+                                } label: {
+                                    Label(
+                                        "\(i18n.t(.menu_terminal_picker)): \(viewModel.preferredTerminal.displayName)",
+                                        systemImage: "chevron.right"
+                                    )
+                                }
+                            }
+
+                            Button(action: {
+                                viewModel.revealCliInFinder()
+                            }) {
+                                Label(i18n.t(.menu_reveal_cli_finder), systemImage: "folder")
+                            }
+
+                            Divider()
+
+                            Button(action: {
+                                viewModel.uninstallCli()
+                            }) {
+                                Label(i18n.t(.menu_uninstall_cli), systemImage: "trash")
+                            }
+                        }
+                    } label: {
+                        Label(
+                            viewModel.isCliInstalled ? "\(i18n.t(.menu_cli_tools)): \(i18n.t(.cli_label_ready))" : i18n.t(.menu_cli_tools),
+                            systemImage: "terminal"
+                        )
+                    }
+
+                    Divider()
+
+                    Menu {
+                        ForEach(ProcessSortMode.allCases) { mode in
+                            Button(action: {
+                                viewModel.sortMode = mode
+                            }) {
+                                if viewModel.sortMode == mode {
+                                    Text("\(mode.localizedName(in: i18n))  ✓")
+                                } else {
+                                    Text(mode.localizedName(in: i18n))
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        Button(action: {
+                            viewModel.showDetailedMetrics.toggle()
+                        }) {
+                            if viewModel.showDetailedMetrics {
+                                Text("\(i18n.t(.menu_show_detailed_metrics))  ✓")
+                            } else {
+                                Text(i18n.t(.menu_show_detailed_metrics))
+                            }
+                        }
+
+                        Divider()
+
+                        Button(action: {
+                            viewModel.showSortButton.toggle()
+                        }) {
+                            if viewModel.showSortButton {
+                                Text("\(i18n.t(.menu_show_sort_button))  ✓")
+                            } else {
+                                Text(i18n.t(.menu_show_sort_button))
+                            }
+                        }
+                    } label: {
+                        Label(
+                            "\(i18n.t(.sort_by)): \(viewModel.sortMode.localizedName(in: i18n))",
+                            systemImage: "arrow.up.arrow.down"
+                        )
                     }
 
                     Divider()
@@ -732,9 +921,11 @@ private func makeVerticalEllipsisImage() -> NSImage {
     return img
 }
 
-// MARK: - 原生待清场应用行组件 (支持单独结束任务、右键上下文与拓展选项，统一右对齐)
+// MARK: - 原生待清场应用行组件 (支持遥测指标显示、多维排序高亮、单独结束与右键上下文，统一右对齐)
 struct NativeTargetRow: View {
     let app: TargetAppEntry
+    let sortMode: ProcessSortMode
+    let showDetailedMetrics: Bool
     let isWorking: Bool
     let onTerminate: () -> Void
     let onWhitelist: () -> Void
@@ -753,16 +944,41 @@ struct NativeTargetRow: View {
                         .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
                 )
 
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .leading, spacing: 1.5) {
                 Text(app.localizedName(in: I18n.shared))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
-                Text(app.bundle_id.isEmpty ? "PID: \(app.pid)" : app.bundle_id)
-                    .font(.system(size: 9.5, design: .monospaced))
-                    .foregroundStyle(.secondary)
+                if showDetailedMetrics {
+                    HStack(spacing: 4) {
+                        Text(ProcessTelemetrySampler.formatMemory(app.memory_bytes))
+                            .foregroundStyle(sortMode == .memory ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
+                            .fontWeight(sortMode == .memory ? .medium : .regular)
+
+                        Text("·")
+                            .foregroundStyle(Color.secondary.opacity(0.3))
+
+                        Text(ProcessTelemetrySampler.formatCpu(app.cpu_percent))
+                            .foregroundStyle(sortMode == .cpu ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
+                            .fontWeight(sortMode == .cpu ? .medium : .regular)
+
+                        Text("·")
+                            .foregroundStyle(Color.secondary.opacity(0.3))
+
+                        let winUnit = (app.window_count ?? 0) <= 1 ? I18n.shared.t(.unit_window_singular) : I18n.shared.t(.unit_windows)
+                        Text(ProcessTelemetrySampler.formatWindows(app.window_count, unit: winUnit))
+                            .foregroundStyle(sortMode == .windows ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
+                            .fontWeight(sortMode == .windows ? .medium : .regular)
+                    }
+                    .font(.system(size: 9, design: .monospaced))
                     .lineLimit(1)
+                } else {
+                    Text(app.bundle_id.isEmpty ? "PID: \(app.pid)" : app.bundle_id)
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
             }
 
             Spacer()
@@ -815,8 +1031,9 @@ struct NativeTargetRow: View {
             .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 4.5)
         .contentShape(Rectangle())
+        .help(app.bundle_id.isEmpty ? "PID: \(app.pid)" : "\(app.bundle_id) (PID: \(app.pid))")
         .contextMenu {
             Button(action: onTerminate) {
                 Label(I18n.shared.t(.action_terminate_app), systemImage: "trash")
@@ -843,9 +1060,11 @@ struct NativeTargetRow: View {
     }
 }
 
-// MARK: - 原生受保护应用行组件 (统一右对齐基线与右键上下文菜单)
+// MARK: - 原生受保护应用行组件 (支持遥测指标显示、多维排序高亮、统一右对齐基线与右键上下文菜单)
 struct NativeProtectedRow: View {
     let app: ProtectedAppEntry
+    let sortMode: ProcessSortMode
+    let showDetailedMetrics: Bool
     let isWorking: Bool
     let onRemove: () -> Void
     let onRevealInFinder: () -> Void
@@ -863,16 +1082,48 @@ struct NativeProtectedRow: View {
                         .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
                 )
 
-            VStack(alignment: .leading, spacing: 1) {
-                Text(app.localizedName(in: I18n.shared))
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 1.5) {
+                HStack(spacing: 5) {
+                    Text(app.localizedName(in: I18n.shared))
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
 
-                Text(I18n.shared.localizeTier(app.tier, id: app.tier_id))
-                    .font(.system(size: 9.5))
-                    .foregroundStyle(.secondary)
+                    Text(I18n.shared.localizeTier(app.tier, id: app.tier_id))
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(Color.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 0.5)
+                        .background(
+                            Capsule()
+                                .fill(Color.primary.opacity(0.06))
+                        )
+                }
+
+                if showDetailedMetrics {
+                    HStack(spacing: 4) {
+                        Text(ProcessTelemetrySampler.formatMemory(app.memory_bytes))
+                            .foregroundStyle(sortMode == .memory ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
+                            .fontWeight(sortMode == .memory ? .medium : .regular)
+
+                        Text("·")
+                            .foregroundStyle(Color.secondary.opacity(0.3))
+
+                        Text(ProcessTelemetrySampler.formatCpu(app.cpu_percent))
+                            .foregroundStyle(sortMode == .cpu ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
+                            .fontWeight(sortMode == .cpu ? .medium : .regular)
+
+                        Text("·")
+                            .foregroundStyle(Color.secondary.opacity(0.3))
+
+                        let winUnit = (app.window_count ?? 0) <= 1 ? I18n.shared.t(.unit_window_singular) : I18n.shared.t(.unit_windows)
+                        Text(ProcessTelemetrySampler.formatWindows(app.window_count, unit: winUnit))
+                            .foregroundStyle(sortMode == .windows ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
+                            .fontWeight(sortMode == .windows ? .medium : .regular)
+                    }
+                    .font(.system(size: 9, design: .monospaced))
                     .lineLimit(1)
+                }
             }
 
             Spacer()
@@ -925,8 +1176,9 @@ struct NativeProtectedRow: View {
             .frame(width: 44, alignment: .trailing)
         }
         .padding(.horizontal, 10)
-        .padding(.vertical, 5)
+        .padding(.vertical, 4.5)
         .contentShape(Rectangle())
+        .help(app.bundle_id.isEmpty ? "PID: \(app.pid)" : "\(app.bundle_id) (PID: \(app.pid))")
         .contextMenu {
             Button(action: onRemove) {
                 Label(I18n.shared.t(.action_remove_whitelist), systemImage: "shield.slash")

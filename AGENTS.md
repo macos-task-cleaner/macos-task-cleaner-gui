@@ -29,6 +29,8 @@ This document defines the architectural conventions, engineering rules, and hard
 * `Sources/MTCBridge.swift`: Communication bridge invoking the `mtc` Rust core engine and parsing JSON summaries.
 * `Sources/LiquidGlassComponents.swift`: Native macOS visual effect wrappers (`VisualEffectBackground`, `SystemCard`, `SystemBadge`, `WindowAutoResizer`).
 * `Sources/LaunchAtLoginManager.swift`: Modern macOS 13+ `SMAppService` launch-at-login integration and first-run coordinator.
+* `Sources/CliIntegrationManager.swift`: Automated CLI installation, symlink health detection, terminal test execution, and shell PATH integration.
+* `Sources/ProcessTelemetrySampler.swift`: Real-time AppKit/CoreGraphics process telemetry sampler for memory, CPU usage, and on-screen window counts.
 * `Sources/I18n.swift`: 24-language internationalization dictionary and runtime locale resolution.
 * `scripts/build_app.sh`: Automated compilation, resource generation, and DMG disk image packaging.
 

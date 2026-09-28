@@ -195,6 +195,33 @@ public enum I18nKey: String {
     case install_cli_success_desc
     case status_cli_installed
     case status_cli_install_failed
+    case menu_cli_tools
+    case cli_label_ready
+    case cli_status_installed
+    case cli_status_broken
+    case cli_status_not_installed
+    case menu_install_cli_user
+    case menu_install_cli_system
+    case menu_test_cli_terminal
+    case menu_reveal_cli_finder
+    case menu_uninstall_cli
+    case status_cli_uninstalled
+    case install_cli_path_missing_title
+    case install_cli_path_missing_desc
+    case btn_add_to_zshrc
+    case status_zshrc_updated
+    case menu_terminal_picker
+    case menu_test_in_terminal_format
+    case sort_by
+    case sort_composite
+    case sort_memory
+    case sort_cpu
+    case sort_windows
+    case sort_default
+    case unit_windows
+    case unit_window_singular
+    case menu_show_detailed_metrics
+    case menu_show_sort_button
 }
 
 @MainActor
@@ -403,6 +430,33 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .install_cli_success_desc: "The 'mtc' command-line tool has been linked to:\n%@\n\nYou can now run 'mtc --help' in your terminal.",
         .status_cli_installed: "Installed 'mtc' to ~/.local/bin/mtc",
         .status_cli_install_failed: "Failed to install 'mtc'",
+        .menu_cli_tools: "Command-Line Tool (mtc)",
+        .cli_label_ready: "Ready",
+        .cli_status_installed: "Installed",
+        .cli_status_broken: "Broken Link",
+        .cli_status_not_installed: "Not Installed in PATH",
+        .menu_install_cli_user: "Install to ~/.local/bin (Recommended)",
+        .menu_install_cli_system: "Install to /usr/local/bin (All Users)",
+        .menu_test_cli_terminal: "Test in Terminal (mtc --help)",
+        .menu_reveal_cli_finder: "Reveal in Finder",
+        .menu_uninstall_cli: "Remove 'mtc' from PATH",
+        .status_cli_uninstalled: "Removed 'mtc' CLI symlink",
+        .install_cli_path_missing_title: "Directory Not in PATH",
+        .install_cli_path_missing_desc: "The 'mtc' tool has been linked to:\n%@\n\nNotice: This directory is not currently in your shell's PATH environment. Would you like to append it to ~/.zshrc?",
+        .btn_add_to_zshrc: "Add to ~/.zshrc",
+        .status_zshrc_updated: "Appended PATH to ~/.zshrc",
+        .menu_terminal_picker: "Test Terminal",
+        .menu_test_in_terminal_format: "Test in %@ (mtc --help)",
+        .sort_by: "Sort",
+        .sort_composite: "Composite Load",
+        .sort_memory: "Memory Usage",
+        .sort_cpu: "CPU Usage",
+        .sort_windows: "Window Count",
+        .sort_default: "Default Order",
+        .unit_windows: "windows",
+        .unit_window_singular: "window",
+        .menu_show_detailed_metrics: "Show Resource Metrics",
+        .menu_show_sort_button: "Show Sort Button in Header",
     ],
     .zhHans: [
         .header_running: "%d 运行中",
@@ -486,6 +540,33 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .install_cli_success_desc: "已将 mtc 命令行工具软链接至:\n%@\n\n您现在可以在任何终端窗口直接运行 'mtc --help'。",
         .status_cli_installed: "已安装 mtc 到 ~/.local/bin/mtc",
         .status_cli_install_failed: "安装 mtc 命令行工具失败",
+        .menu_cli_tools: "命令行工具 (mtc)",
+        .cli_label_ready: "已就绪",
+        .cli_status_installed: "已安装",
+        .cli_status_broken: "软链接失效",
+        .cli_status_not_installed: "未安装到终端 PATH",
+        .menu_install_cli_user: "安装到 ~/.local/bin (当前用户推荐)",
+        .menu_install_cli_system: "安装到 /usr/local/bin (所有用户)",
+        .menu_test_cli_terminal: "在终端中测试运行 (mtc --help)",
+        .menu_reveal_cli_finder: "在访达中显示",
+        .menu_uninstall_cli: "从 PATH 中移除软链接",
+        .status_cli_uninstalled: "已移除 mtc 命令行软链接",
+        .install_cli_path_missing_title: "目录未包含在 PATH 中",
+        .install_cli_path_missing_desc: "已将 mtc 软链接至:\n%@\n\n提示: 检测到该目录尚未包含在当前终端的 PATH 环境变量中。是否自动将其添加至 ~/.zshrc？",
+        .btn_add_to_zshrc: "自动写入 ~/.zshrc",
+        .status_zshrc_updated: "已成功将 PATH 写入 ~/.zshrc",
+        .menu_terminal_picker: "测试终端",
+        .menu_test_in_terminal_format: "在 %@ 中测试运行 (mtc --help)",
+        .sort_by: "排序方式",
+        .sort_composite: "综合负载",
+        .sort_memory: "内存占用",
+        .sort_cpu: "CPU 占用",
+        .sort_windows: "窗口数量",
+        .sort_default: "默认顺序",
+        .unit_windows: "窗口",
+        .unit_window_singular: "窗口",
+        .menu_show_detailed_metrics: "显示详细资源数值",
+        .menu_show_sort_button: "顶栏显示排序按钮",
     ],
     .zhHant: [
         .header_running: "%d 執行中",
@@ -569,6 +650,33 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .install_cli_success_desc: "已將 mtc 命令列工具軟連結至:\n%@\n\n您現在可以在任何終端機視窗直接執行 'mtc --help'。",
         .status_cli_installed: "已安裝 mtc 到 ~/.local/bin/mtc",
         .status_cli_install_failed: "安裝 mtc 命令列工具失敗",
+        .menu_cli_tools: "命令列工具 (mtc)",
+        .cli_label_ready: "已就緒",
+        .cli_status_installed: "已安裝",
+        .cli_status_broken: "軟連結失效",
+        .cli_status_not_installed: "未安裝到終端機 PATH",
+        .menu_install_cli_user: "安裝到 ~/.local/bin (目前使用者推薦)",
+        .menu_install_cli_system: "安裝到 /usr/local/bin (所有使用者)",
+        .menu_test_cli_terminal: "在終端機中測試執行 (mtc --help)",
+        .menu_reveal_cli_finder: "在 Finder 中顯示",
+        .menu_uninstall_cli: "從 PATH 中移除軟連結",
+        .status_cli_uninstalled: "已移除 mtc 命令列軟連結",
+        .install_cli_path_missing_title: "目錄未包含在 PATH 中",
+        .install_cli_path_missing_desc: "已將 mtc 軟連結至:\n%@\n\n提示: 偵測到該目錄尚未包含在目前終端機的 PATH 環境變數中。是否自動將其加入至 ~/.zshrc？",
+        .btn_add_to_zshrc: "自動寫入 ~/.zshrc",
+        .status_zshrc_updated: "已成功將 PATH 寫入 ~/.zshrc",
+        .menu_terminal_picker: "測試終端機",
+        .menu_test_in_terminal_format: "在 %@ 中測試執行 (mtc --help)",
+        .sort_by: "排序方式",
+        .sort_composite: "綜合負載",
+        .sort_memory: "記憶體占用",
+        .sort_cpu: "處理器占用",
+        .sort_windows: "視窗數量",
+        .sort_default: "預設順序",
+        .unit_windows: "視窗",
+        .unit_window_singular: "視窗",
+        .menu_show_detailed_metrics: "顯示詳細資源數值",
+        .menu_show_sort_button: "頂欄顯示排序按鈕",
     ],
     .ja: [
         .header_running: "%d 実行中",
@@ -2314,3 +2422,17 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .status_cli_install_failed: "Не вдалося встановити 'mtc'",
     ]
 ]
+
+extension ProcessSortMode {
+    @MainActor
+    public func localizedName(in i18n: I18n) -> String {
+        switch self {
+        case .composite: return i18n.t(.sort_composite)
+        case .memory: return i18n.t(.sort_memory)
+        case .cpu: return i18n.t(.sort_cpu)
+        case .windows: return i18n.t(.sort_windows)
+        case .defaultName: return i18n.t(.sort_default)
+        }
+    }
+}
+
