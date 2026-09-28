@@ -6,6 +6,7 @@ public struct TaskCleanerMenuView: View {
     @ObservedObject private var i18n = I18n.shared
     @ObservedObject private var launchManager = LaunchAtLoginManager.shared
     @ObservedObject private var shortcutManager = GlobalShortcutManager.shared
+    @ObservedObject private var accessibilityManager = AccessibilityManager.shared
 
     public init(viewModel: TaskCleanerViewModel) {
         self.viewModel = viewModel
@@ -24,6 +25,8 @@ public struct TaskCleanerMenuView: View {
                 // 首次开机自启动引导卡片 (仅首次打开且未开启时展示)
                 if launchManager.shouldShowPrompt {
                     launchAtLoginPromptCard
+                } else if accessibilityManager.shouldShowPrompt {
+                    accessibilityPromptCard
                 }
 
                 // 2. 核心操作面板 (恒定高度刚性卡片，内嵌动态反馈，绝不产生上下跳跃)
@@ -48,6 +51,7 @@ public struct TaskCleanerMenuView: View {
         // 打开即刷新，并保持实时常驻前台进程感知
         .onAppear {
             viewModel.startLiveMonitoring()
+            accessibilityManager.refreshStatus()
         }
         .onDisappear {
             viewModel.stopLiveMonitoring()
@@ -210,6 +214,65 @@ public struct TaskCleanerMenuView: View {
                         }
                     }) {
                         Text(i18n.t(.btn_enable))
+                            .font(.system(size: 10.5, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.mini)
+                }
+            }
+            .padding(9)
+        }
+    }
+
+    // MARK: - 辅助功能权限引导卡片 (主动感知与一步跳转授权)
+    private var accessibilityPromptCard: some View {
+        SystemCard(cornerRadius: 10) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: "hand.raised.fill")
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(Color(nsColor: .systemOrange))
+
+                    Text(i18n.t(.accessibility_prompt_title))
+                        .font(.system(size: 11.5, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Spacer()
+
+                    Button(action: {
+                        accessibilityManager.dismissPrompt()
+                    }) {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16, height: 16)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                Text(i18n.t(.accessibility_prompt_desc))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                HStack(spacing: 8) {
+                    Spacer()
+
+                    Button(action: {
+                        accessibilityManager.dismissPrompt()
+                    }) {
+                        Text(i18n.t(.btn_later))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button(action: {
+                        accessibilityManager.requestAuthorization()
+                    }) {
+                        Text(i18n.t(.btn_grant_permission))
                             .font(.system(size: 10.5, weight: .semibold))
                     }
                     .buttonStyle(.borderedProminent)
@@ -652,6 +715,16 @@ public struct TaskCleanerMenuView: View {
                     Divider()
 
                     Menu {
+                        if !accessibilityManager.isTrusted {
+                            Button(action: {
+                                accessibilityManager.requestAuthorization()
+                            }) {
+                                Label(i18n.t(.menu_grant_accessibility), systemImage: "exclamationmark.triangle")
+                            }
+
+                            Divider()
+                        }
+
                         ForEach(ShortcutPreset.allCases) { preset in
                             Button(action: {
                                 shortcutManager.setPreset(preset)

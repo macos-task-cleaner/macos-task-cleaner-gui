@@ -198,6 +198,7 @@ public class ShortcutRecorderViewModel: ObservableObject {
 public struct ShortcutRecorderView: View {
     @ObservedObject private var i18n = I18n.shared
     @StateObject private var vm = ShortcutRecorderViewModel()
+    @ObservedObject private var accessibilityManager = AccessibilityManager.shared
 
     var onClose: () -> Void
 
@@ -304,6 +305,32 @@ public struct ShortcutRecorderView: View {
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
 
+            // Accessibility Warning Row (若未授予辅助功能权限，展示提醒与授权入口)
+            if !accessibilityManager.isTrusted {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(Color(nsColor: .systemOrange))
+
+                    Text(i18n.t(.shortcut_recorder_accessibility_warning))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+
+                    Spacer()
+
+                    Button(action: {
+                        accessibilityManager.requestAuthorization()
+                    }) {
+                        Text(i18n.t(.btn_grant_permission))
+                            .font(.system(size: 10.5, weight: .semibold))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(Color.accentColor)
+                }
+                .padding(.horizontal, 4)
+            }
+
             // Action Buttons
             HStack(spacing: 10) {
                 Button(action: {
@@ -394,7 +421,7 @@ public class ShortcutRecorderWindowController: NSWindowController {
 
     private init() {
         let panel = NSPanel(
-            contentRect: NSRect(x: 0, y: 0, width: 440, height: 230),
+            contentRect: NSRect(x: 0, y: 0, width: 440, height: 255),
             styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
             backing: .buffered,
             defer: false

@@ -223,6 +223,13 @@ public enum I18nKey: String {
     case menu_show_detailed_metrics
     case menu_show_app_identifier
     case menu_show_sort_button
+    case accessibility_prompt_title
+    case accessibility_prompt_desc
+    case btn_grant_permission
+    case menu_accessibility_status
+    case menu_grant_accessibility
+    case status_accessibility_granted
+    case shortcut_recorder_accessibility_warning
 }
 
 @MainActor
@@ -459,6 +466,13 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .menu_show_detailed_metrics: "Show Resource Metrics",
         .menu_show_app_identifier: "Show App Identifier",
         .menu_show_sort_button: "Show Sort Button in Header",
+        .accessibility_prompt_title: "Accessibility Access Required",
+        .accessibility_prompt_desc: "Global shortcut requires Accessibility permission to detect hotkeys across applications.",
+        .btn_grant_permission: "Grant Access",
+        .menu_accessibility_status: "Accessibility Permission",
+        .menu_grant_accessibility: "Grant Accessibility Access...",
+        .status_accessibility_granted: "Accessibility permission granted",
+        .shortcut_recorder_accessibility_warning: "Accessibility permission is required for global hotkeys to trigger outside this window.",
     ],
     .zhHans: [
         .header_running: "%d 运行中",
@@ -570,6 +584,13 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .menu_show_detailed_metrics: "显示详细资源数值",
         .menu_show_app_identifier: "显示应用标识符",
         .menu_show_sort_button: "顶栏显示排序按钮",
+        .accessibility_prompt_title: "需要辅助功能权限",
+        .accessibility_prompt_desc: "全局快捷键需要辅助功能权限以确保在后台及各应用中稳定触发。",
+        .btn_grant_permission: "授权设置",
+        .menu_accessibility_status: "辅助功能权限",
+        .menu_grant_accessibility: "授予辅助功能权限...",
+        .status_accessibility_granted: "辅助功能权限已授予",
+        .shortcut_recorder_accessibility_warning: "全局热键需授予辅助功能权限方可在其他应用中激活。",
     ],
     .zhHant: [
         .header_running: "%d 執行中",
@@ -681,6 +702,13 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .menu_show_detailed_metrics: "顯示詳細資源數值",
         .menu_show_app_identifier: "顯示應用程式識別碼",
         .menu_show_sort_button: "頂欄顯示排序按鈕",
+        .accessibility_prompt_title: "需要輔助功能權限",
+        .accessibility_prompt_desc: "全域快捷鍵需要輔助功能權限以確保在後台及各應用程式中穩定觸發。",
+        .btn_grant_permission: "授權設定",
+        .menu_accessibility_status: "輔助功能權限",
+        .menu_grant_accessibility: "授予輔助功能權限...",
+        .status_accessibility_granted: "輔助功能權限已授予",
+        .shortcut_recorder_accessibility_warning: "全域熱鍵需授予輔助功能權限方可在其他應用程式中啟動。",
     ],
     .ja: [
         .header_running: "%d 実行中",

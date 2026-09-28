@@ -166,6 +166,7 @@ public class GlobalShortcutManager: ObservableObject {
         UserDefaults.standard.set(preset.displayString, forKey: userDefaultsKeyDisplay)
 
         registerCurrentShortcut()
+        AccessibilityManager.shared.resetDismissal()
         TaskCleanerViewModel.shared?.statusMessage = I18n.shared.format(.status_shortcut_bound, preset.displayString)
     }
 
@@ -181,6 +182,7 @@ public class GlobalShortcutManager: ObservableObject {
         UserDefaults.standard.set(display, forKey: userDefaultsKeyDisplay)
 
         registerCurrentShortcut()
+        AccessibilityManager.shared.resetDismissal()
         TaskCleanerViewModel.shared?.statusMessage = I18n.shared.format(.status_shortcut_bound, display)
     }
 
