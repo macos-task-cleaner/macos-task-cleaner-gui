@@ -221,6 +221,7 @@ public enum I18nKey: String {
     case unit_windows
     case unit_window_singular
     case menu_show_detailed_metrics
+    case menu_show_app_identifier
     case menu_show_sort_button
 }
 
@@ -456,6 +457,7 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .unit_windows: "windows",
         .unit_window_singular: "window",
         .menu_show_detailed_metrics: "Show Resource Metrics",
+        .menu_show_app_identifier: "Show App Identifier",
         .menu_show_sort_button: "Show Sort Button in Header",
     ],
     .zhHans: [
@@ -566,6 +568,7 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .unit_windows: "窗口",
         .unit_window_singular: "窗口",
         .menu_show_detailed_metrics: "显示详细资源数值",
+        .menu_show_app_identifier: "显示应用标识符",
         .menu_show_sort_button: "顶栏显示排序按钮",
     ],
     .zhHant: [
@@ -676,6 +679,7 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .unit_windows: "視窗",
         .unit_window_singular: "視窗",
         .menu_show_detailed_metrics: "顯示詳細資源數值",
+        .menu_show_app_identifier: "顯示應用程式識別碼",
         .menu_show_sort_button: "頂欄顯示排序按鈕",
     ],
     .ja: [

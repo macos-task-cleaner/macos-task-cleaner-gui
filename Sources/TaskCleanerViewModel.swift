@@ -35,6 +35,13 @@ public class TaskCleanerViewModel: ObservableObject {
         }
     }
 
+    private let showAppIdentifierKey = "TaskCleaner_ShowAppIdentifier"
+    @Published public var showAppIdentifier: Bool {
+        didSet {
+            UserDefaults.standard.set(showAppIdentifier, forKey: showAppIdentifierKey)
+        }
+    }
+
     private let showSortButtonKey = "TaskCleaner_ShowSortButton"
     @Published public var showSortButton: Bool {
         didSet {
@@ -63,6 +70,12 @@ public class TaskCleanerViewModel: ObservableObject {
             self.showDetailedMetrics = true
         } else {
             self.showDetailedMetrics = UserDefaults.standard.bool(forKey: showDetailedMetricsKey)
+        }
+
+        if UserDefaults.standard.object(forKey: showAppIdentifierKey) == nil {
+            self.showAppIdentifier = true
+        } else {
+            self.showAppIdentifier = UserDefaults.standard.bool(forKey: showAppIdentifierKey)
         }
 
         if UserDefaults.standard.object(forKey: showSortButtonKey) == nil {

@@ -126,6 +126,18 @@ public struct TaskCleanerMenuView: View {
                     Text(i18n.t(.menu_show_detailed_metrics))
                 }
             }
+
+            Button(action: {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    viewModel.showAppIdentifier.toggle()
+                }
+            }) {
+                if viewModel.showAppIdentifier {
+                    Text("\(i18n.t(.menu_show_app_identifier))  ✓")
+                } else {
+                    Text(i18n.t(.menu_show_app_identifier))
+                }
+            }
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
@@ -433,6 +445,7 @@ public struct TaskCleanerMenuView: View {
                         app: app,
                         sortMode: viewModel.sortMode,
                         showDetailedMetrics: viewModel.showDetailedMetrics,
+                        showAppIdentifier: viewModel.showAppIdentifier,
                         isWorking: viewModel.isWorking,
                         onTerminate: {
                             viewModel.terminateTarget(app)
@@ -478,6 +491,7 @@ public struct TaskCleanerMenuView: View {
                         app: app,
                         sortMode: viewModel.sortMode,
                         showDetailedMetrics: viewModel.showDetailedMetrics,
+                        showAppIdentifier: viewModel.showAppIdentifier,
                         isWorking: viewModel.isWorking,
                         onRemove: {
                             viewModel.unprotectApp(app)
@@ -535,6 +549,7 @@ public struct TaskCleanerMenuView: View {
                             app: app,
                             sortMode: viewModel.sortMode,
                             showDetailedMetrics: viewModel.showDetailedMetrics,
+                            showAppIdentifier: viewModel.showAppIdentifier,
                             isWorking: viewModel.isWorking,
                             onTerminate: {
                                 viewModel.terminateTarget(app)
@@ -583,6 +598,7 @@ public struct TaskCleanerMenuView: View {
                             app: app,
                             sortMode: viewModel.sortMode,
                             showDetailedMetrics: viewModel.showDetailedMetrics,
+                            showAppIdentifier: viewModel.showAppIdentifier,
                             isWorking: viewModel.isWorking,
                             onRemove: {
                                 viewModel.unprotectApp(app)
@@ -798,6 +814,16 @@ public struct TaskCleanerMenuView: View {
                             }
                         }
 
+                        Button(action: {
+                            viewModel.showAppIdentifier.toggle()
+                        }) {
+                            if viewModel.showAppIdentifier {
+                                Text("\(i18n.t(.menu_show_app_identifier))  ✓")
+                            } else {
+                                Text(i18n.t(.menu_show_app_identifier))
+                            }
+                        }
+
                         Divider()
 
                         Button(action: {
@@ -926,6 +952,7 @@ struct NativeTargetRow: View {
     let app: TargetAppEntry
     let sortMode: ProcessSortMode
     let showDetailedMetrics: Bool
+    let showAppIdentifier: Bool
     let isWorking: Bool
     let onTerminate: () -> Void
     let onWhitelist: () -> Void
@@ -950,6 +977,13 @@ struct NativeTargetRow: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
 
+                if showAppIdentifier {
+                    Text(app.bundle_id.isEmpty ? "PID: \(app.pid)" : app.bundle_id)
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
                 if showDetailedMetrics {
                     HStack(spacing: 4) {
                         Text(ProcessTelemetrySampler.formatMemory(app.memory_bytes))
@@ -973,11 +1007,6 @@ struct NativeTargetRow: View {
                     }
                     .font(.system(size: 9, design: .monospaced))
                     .lineLimit(1)
-                } else {
-                    Text(app.bundle_id.isEmpty ? "PID: \(app.pid)" : app.bundle_id)
-                        .font(.system(size: 9.5, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
                 }
             }
 
@@ -1065,6 +1094,7 @@ struct NativeProtectedRow: View {
     let app: ProtectedAppEntry
     let sortMode: ProcessSortMode
     let showDetailedMetrics: Bool
+    let showAppIdentifier: Bool
     let isWorking: Bool
     let onRemove: () -> Void
     let onRevealInFinder: () -> Void
@@ -1098,6 +1128,13 @@ struct NativeProtectedRow: View {
                             Capsule()
                                 .fill(Color.primary.opacity(0.06))
                         )
+                }
+
+                if showAppIdentifier {
+                    Text(app.bundle_id.isEmpty ? "PID: \(app.pid)" : app.bundle_id)
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
                 }
 
                 if showDetailedMetrics {
