@@ -25,8 +25,11 @@ public struct TaskCleanerMenuView: View {
                 // 首次开机自启动引导卡片 (仅首次打开且未开启时展示)
                 if launchManager.shouldShowPrompt {
                     launchAtLoginPromptCard
-                } else if accessibilityManager.shouldShowPrompt {
-                    accessibilityPromptCard
+                }
+
+                // 辅助功能权限极简轻量条 (仅在快捷键启用但未授权时展示，免除视觉侵占)
+                if accessibilityManager.shouldShowPrompt {
+                    accessibilityInlineBanner
                 }
 
                 // 2. 核心操作面板 (恒定高度刚性卡片，内嵌动态反馈，绝不产生上下跳跃)
@@ -224,63 +227,50 @@ public struct TaskCleanerMenuView: View {
         }
     }
 
-    // MARK: - 辅助功能权限引导卡片 (主动感知与一步跳转授权)
-    private var accessibilityPromptCard: some View {
-        SystemCard(cornerRadius: 10) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack(spacing: 6) {
-                    Image(systemName: "hand.raised.fill")
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(Color(nsColor: .systemOrange))
+    // MARK: - 辅助功能权限极简轻量横条 (原生精致排版，免除视觉侵占)
+    private var accessibilityInlineBanner: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "command")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.accentColor)
 
-                    Text(i18n.t(.accessibility_prompt_title))
-                        .font(.system(size: 11.5, weight: .semibold))
-                        .foregroundStyle(.primary)
+            Text(i18n.t(.accessibility_prompt_title))
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(.primary.opacity(0.85))
+                .lineLimit(1)
 
-                    Spacer()
+            Spacer(minLength: 4)
 
-                    Button(action: {
-                        accessibilityManager.dismissPrompt()
-                    }) {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 16, height: 16)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Text(i18n.t(.accessibility_prompt_desc))
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                HStack(spacing: 8) {
-                    Spacer()
-
-                    Button(action: {
-                        accessibilityManager.dismissPrompt()
-                    }) {
-                        Text(i18n.t(.btn_later))
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.plain)
-
-                    Button(action: {
-                        accessibilityManager.requestAuthorization()
-                    }) {
-                        Text(i18n.t(.btn_grant_permission))
-                            .font(.system(size: 10.5, weight: .semibold))
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.mini)
-                }
+            Button(action: {
+                accessibilityManager.requestAuthorization()
+            }) {
+                Text(i18n.t(.btn_grant_permission))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
             }
-            .padding(9)
+            .buttonStyle(.plain)
+
+            Button(action: {
+                accessibilityManager.dismissPrompt()
+            }) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary.opacity(0.6))
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 7)
+                .fill(Color.accentColor.opacity(0.08))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 7)
+                .strokeBorder(Color.accentColor.opacity(0.2), lineWidth: 0.6)
+        )
     }
 
     // MARK: - Action Section (结构恒定，去除底层命令字样与注释，自然优雅)

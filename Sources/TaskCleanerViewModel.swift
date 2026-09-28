@@ -196,6 +196,7 @@ public class TaskCleanerViewModel: ObservableObject {
             }
 
             self.refreshCliStatus()
+            AccessibilityManager.shared.refreshStatus()
 
             if !silent {
                 self.isWorking = false

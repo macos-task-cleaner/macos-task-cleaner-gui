@@ -198,6 +198,9 @@ EOF
 "CFBundleName" = "Task Cleaner";
 EOF
     done
+
+    echo "       对 App Bundle 进行本地 Ad-Hoc 深度代码签名..."
+    codesign -s - --force --deep "$dest_dir" >/dev/null 2>&1 || true
 }
 
 # 压缩 Zip 归档并计算 SHA256
