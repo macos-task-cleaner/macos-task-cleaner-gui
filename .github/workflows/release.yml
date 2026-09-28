@@ -82,7 +82,7 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "schedule" ]; then
             TAG_NAME="pre-$(date +'%Y.%m.%d')"
-            RELEASE_TITLE="Task Cleaner Pre-release ${TAG_NAME}"
+            RELEASE_TITLE="Task Cleaner ${TAG_NAME}"
             PUBLISH_RELEASE="false"
             IS_PRE="true"
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
@@ -91,7 +91,7 @@ jobs:
             else
               TAG_NAME="v$(date +'%Y.%m.%d')"
             fi
-            RELEASE_TITLE="Task Cleaner Release ${TAG_NAME}"
+            RELEASE_TITLE="Task Cleaner ${TAG_NAME}"
             PUBLISH_RELEASE="${{ github.event.inputs.publish_release }}"
             IS_PRE="${{ github.event.inputs.prerelease }}"
           else
