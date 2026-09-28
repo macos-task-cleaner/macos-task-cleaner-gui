@@ -101,13 +101,19 @@ This document defines the architectural conventions, engineering rules, and hard
 
 ---
 
-## 5. Internationalization (I18n) Update Protocol
+## 5. Internationalization (I18n) Decoupling & Manual Trigger (STRICT)
 
-* `Sources/I18n.swift` defines 24 languages across four synchronized zones: `enum I18nKey`, `.en`, `.zhHans`, and `.zhHant`.
-* **Prohibited**: Never perform 4 separate view-and-replace round-trips for each dictionary section.
-* **Mandated**: 
-  - Either run the automated helper: `python3 scripts/update_i18n.py --key <key> --en "..." --zh "..."` (if available);
-  - Or prepare all 4 updates in memory and perform them in a single, batched replacement block to avoid multiple network round-trips.
+* **Decoupling Principle**: Full multi-lingual dictionary synchronization (`Sources/I18n.swift`) is strictly decoupled from daily feature development and UI prototyping.
+* **Prohibited**:
+  - Never proactively modify `Sources/I18n.swift` (adding new `I18nKey` enums or multi-lingual dictionary entries) during routine UI adjustments, bug fixes, or incremental feature delivery.
+  - Never block a fast UI fix on four-language dictionary synchronization.
+* **Daily Development / Fast Iteration Rule**:
+  - Use inline string literals (e.g. `Text("...")`, `Button("...")`, `Label("...")`) or raw string fallbacks directly in SwiftUI views for new UI elements, labels, or toggles.
+* **Manual Trigger Requirement (User-Driven)**:
+  - Agent must ONLY update `Sources/I18n.swift` when the user **explicitly commands** it (e.g., "同步多语言", "更新 i18n", "翻译新加的文案", "做国际化").
+  - When explicitly triggered by the user:
+    - Prepare all language updates (key enum, `.en`, `.zhHans`, `.zhHant`) in memory and apply them in a **single atomic edit** (or via `python3 scripts/update_i18n.py`);
+    - Strictly prohibited from performing fragmented 4-way slice editing.
 
 ---
 
