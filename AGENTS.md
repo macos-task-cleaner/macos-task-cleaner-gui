@@ -95,6 +95,20 @@ This document defines the architectural conventions, engineering rules, and hard
   * `appListView` must dynamically calculate `listHeight = 230.0 - (launchPrompt ? 65 : 0) - (accessibilityPrompt ? 34 : 0)` to guarantee the 460pt total window height remains rigid and bottom toolbars are never pushed out.
   * `scripts/build_app.sh install` must always execute `swift build -c release` to ensure new code changes are physically compiled into the app bundle.
 
+### I. Deep Multi-Process & Virtual Machine Memory Aggregation
+* **Problem**:
+  1. Naive single-PID measurement via `proc_pidinfo(pid, PROC_PIDTASKINFO)` only queries the main frontmost GUI process (e.g. Parallels `prl_client_app` at ~200MB, Chrome browser process at ~280MB).
+  2. Complex applications distribute heavy workloads into helper daemons, renderers, and hypervisor VMs (e.g. Parallels `prl_vm_app` taking 4GB-6GB).
+  3. Hypervisor/virtualization processes often run under UID 0 (`root`). Direct unprivileged calls to `proc_pidinfo` fail with `EPERM` (errno 1), causing VM memory to be completely missed.
+* **Rule**:
+  * Both Core (`macos-task-cleaner/src/app.rs`) and GUI (`ProcessTelemetrySampler.swift`) must perform deep multi-process aggregation.
+  * Take a system process table snapshot via `/bin/ps -ax -o pid,ppid,rss,%cpu` (which executes in ~15ms and penetrates UID 0 / EPERM barriers thanks to macOS `/bin/ps` setuid root privileges).
+  * Associate all system processes with their foreground application using two primary criteria:
+    a) **Bundle Directory Ownership**: Binary path (`proc_pidpath`) starts with `<App.bundleURL.path>/` (e.g. `/Applications/Parallels Desktop.app/...`).
+    b) **Process Hierarchy Lineage**: Ancestor chain in PPID tree resolves to the application's root PID.
+  * Always sum aggregated memory (RSS) and CPU across all associated sub-processes.
+  * `scripts/build_app.sh` must automatically check and compile the latest `mtc` Rust engine whenever core or CLI source files are newer than the target binary.
+
 ---
 
 ## 4. Build & Verification Tiering (CRITICAL EFFICIENCY RULE)

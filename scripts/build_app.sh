@@ -67,7 +67,18 @@ locate_gui_binary() {
 find_mtc_binary() {
     local target_arch="$1"
     local cli_dir="$DIR/../macos-task-cleaner-cli"
+    local core_dir="$DIR/../macos-task-cleaner"
     local candidate=""
+
+    # 自动增量同步编译本地 release mtc (若源码有更新)
+    if [ -d "$cli_dir" ] && command -v cargo >/dev/null 2>&1; then
+        if [ ! -f "$cli_dir/target/release/mtc" ] || \
+           [ "$core_dir/src/app.rs" -nt "$cli_dir/target/release/mtc" ] || \
+           [ "$cli_dir/src/main.rs" -nt "$cli_dir/target/release/mtc" ]; then
+            echo "[CLI] 正在同步编译最新 mtc 引擎..."
+            (cd "$cli_dir" && cargo build --release)
+        fi
+    fi
 
     case "$target_arch" in
         arm64)

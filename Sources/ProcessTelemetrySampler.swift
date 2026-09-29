@@ -88,10 +88,153 @@ public final class ProcessTelemetrySampler {
         )
     }
 
-    /// 批量为一组 PID 采样遥测数据
+    private struct SystemProcessEntry {
+        let ppid: Int32
+        let rssBytes: UInt64
+        let cpuPercent: Double
+    }
+
+    /// 执行系统级全量进程快照 (/bin/ps -ax -o pid,ppid,rss,%cpu)
+    /// 突破沙箱与 root/不同 UID 权限限制，毫秒级获取全系统真实物理驻留内存与 CPU 负载
+    private func fetchSystemProcessSnapshot() -> (processes: [Int32: SystemProcessEntry], paths: [Int32: String])? {
+        let pipe = Pipe()
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: "/bin/ps")
+        proc.arguments = ["-ax", "-o", "pid,ppid,rss,%cpu"]
+        proc.standardOutput = pipe
+        do {
+            try proc.run()
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            proc.waitUntilExit()
+
+            guard proc.terminationStatus == 0,
+                  let text = String(data: data, encoding: .utf8) else {
+                return nil
+            }
+
+            var processes: [Int32: SystemProcessEntry] = [:]
+            var paths: [Int32: String] = [:]
+            var pathBuf = [CChar](repeating: 0, count: 4096)
+
+            for line in text.components(separatedBy: "\n").dropFirst() {
+                let parts = line.split(separator: " ").map { String($0) }
+                if parts.count >= 4,
+                   let pid = Int32(parts[0]),
+                   let ppid = Int32(parts[1]),
+                   let rssKb = UInt64(parts[2]),
+                   let cpu = Double(parts[3]) {
+                    processes[pid] = SystemProcessEntry(ppid: ppid, rssBytes: rssKb * 1024, cpuPercent: cpu)
+
+                    let ret = proc_pidpath(pid, &pathBuf, 4096)
+                    if ret > 0 {
+                        paths[pid] = String(cString: pathBuf)
+                    }
+                }
+            }
+
+            return (processes, paths)
+        } catch {
+            return nil
+        }
+    }
+
+    /// 批量为一组前台应用 PID 采样深度聚合遥测数据 (内存、CPU、窗口与综合评分)
     public func sampleBatch(pids: [Int32]) -> [Int32: AppTelemetry] {
         let windows = sampleWindowCounts()
         var results: [Int32: AppTelemetry] = [:]
+
+        // 尝试使用系统级深度快照聚合进程树与沙盒虚拟机内存
+        if let (sysProcs, paths) = fetchSystemProcessSnapshot() {
+            struct AppMeta {
+                let pid: Int32
+                let bundlePath: String?
+            }
+
+            var appMetas: [AppMeta] = []
+            for pid in pids {
+                var bp: String? = NSRunningApplication(processIdentifier: pid)?.bundleURL?.path
+                if bp == nil, let p = paths[pid], let idx = p.range(of: ".app") {
+                    bp = String(p[..<idx.upperBound])
+                }
+                appMetas.append(AppMeta(pid: pid, bundlePath: bp))
+            }
+
+            let fgPids = Set(pids)
+            let bundleApps = appMetas
+                .filter { $0.bundlePath != nil }
+                .sorted { ($0.bundlePath?.count ?? 0) > ($1.bundlePath?.count ?? 0) }
+
+            var memMap: [Int32: UInt64] = Dictionary(uniqueKeysWithValues: pids.map { ($0, 0) })
+            var cpuMap: [Int32: Double] = Dictionary(uniqueKeysWithValues: pids.map { ($0, 0.0) })
+
+            func findAncestorApp(for pid: Int32) -> Int32? {
+                var curr = pid
+                var visited = Set<Int32>()
+                visited.insert(curr)
+                for _ in 0..<32 {
+                    guard let parent = sysProcs[curr]?.ppid, parent > 1, !visited.contains(parent) else { break }
+                    if fgPids.contains(parent) {
+                        return parent
+                    }
+                    visited.insert(parent)
+                    curr = parent
+                }
+                return nil
+            }
+
+            for (procPid, entry) in sysProcs {
+                // 1. 直属应用主进程
+                if fgPids.contains(procPid) {
+                    memMap[procPid, default: 0] += entry.rssBytes
+                    cpuMap[procPid, default: 0.0] += entry.cpuPercent
+                    continue
+                }
+
+                // 2. 检查是否在某 App 的 Bundle 目录内 (例如 Parallels VM.app/prl_vm_app 或 Chrome Helper)
+                var matchedApp: Int32? = nil
+                if let path = paths[procPid] {
+                    for app in bundleApps {
+                        if let bp = app.bundlePath, path.hasPrefix(bp + "/") {
+                            matchedApp = app.pid
+                            break
+                        }
+                    }
+                }
+
+                if let appPid = matchedApp {
+                    memMap[appPid, default: 0] += entry.rssBytes
+                    cpuMap[appPid, default: 0.0] += entry.cpuPercent
+                    continue
+                }
+
+                // 3. 检查进程树 PPID 拓扑
+                if let ancPid = findAncestorApp(for: procPid) {
+                    memMap[ancPid, default: 0] += entry.rssBytes
+                    cpuMap[ancPid, default: 0.0] += entry.cpuPercent
+                    continue
+                }
+            }
+
+            for pid in pids {
+                let mem = memMap[pid] ?? 0
+                let cpu = min(800.0, max(0.0, cpuMap[pid] ?? 0.0))
+                let win = windows[pid] ?? 0
+
+                let memMB = Double(mem) / (1024.0 * 1024.0)
+                let composite = (memMB / 100.0) * 0.4 + (cpu * 2.0) * 0.4 + (Double(win) * 5.0) * 0.2
+
+                results[pid] = AppTelemetry(
+                    pid: pid,
+                    memoryBytes: mem,
+                    cpuPercent: cpu,
+                    windowCount: win,
+                    compositeScore: composite
+                )
+            }
+            return results
+        }
+
+        // 降级使用单进程 proc_pidinfo 探测
         for pid in pids {
             results[pid] = sampleProcess(pid: pid, windowCount: windows[pid] ?? 0)
         }

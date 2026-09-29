@@ -162,7 +162,7 @@ public class TaskCleanerViewModel: ObservableObject {
             let enrichedTargets = result.targets.map { target -> TargetAppEntry in
                 var t = target
                 if let telem = telemetryMap[Int32(target.pid)] {
-                    t.memory_bytes = telem.memoryBytes
+                    t.memory_bytes = telem.memoryBytes > 0 ? telem.memoryBytes : target.memory_bytes
                     t.cpu_percent = telem.cpuPercent
                     t.window_count = telem.windowCount
                     t.composite_score = telem.compositeScore
@@ -172,7 +172,7 @@ public class TaskCleanerViewModel: ObservableObject {
             let enrichedProtected = result.protected_apps.map { app -> ProtectedAppEntry in
                 var p = app
                 if let telem = telemetryMap[Int32(app.pid)] {
-                    p.memory_bytes = telem.memoryBytes
+                    p.memory_bytes = telem.memoryBytes > 0 ? telem.memoryBytes : app.memory_bytes
                     p.cpu_percent = telem.cpuPercent
                     p.window_count = telem.windowCount
                     p.composite_score = telem.compositeScore
