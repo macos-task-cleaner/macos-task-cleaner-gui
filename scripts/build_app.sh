@@ -401,11 +401,14 @@ build_native() {
 }
 
 build_bundle_only() {
-    echo "[编译] 正在组装本机 App Bundle (跳过 DMG 打包)..."
+    echo "[编译] 正在增量编译 Release 二进制 (跳过 DMG 打包)..."
+    swift build -c release
     local bin
-    bin="$(locate_gui_binary "$DIR/.build" "")"
-    if [ -z "$bin" ] || [ ! -f "$bin" ]; then
-        swift build -c release
+    local bin_dir
+    bin_dir="$(swift build -c release --show-bin-path 2>/dev/null || true)"
+    if [ -n "$bin_dir" ] && [ -f "$bin_dir/TaskCleanerGUI" ]; then
+        bin="$bin_dir/TaskCleanerGUI"
+    else
         bin="$(locate_gui_binary "$DIR/.build" "")"
     fi
     if [ -z "$bin" ] || [ ! -f "$bin" ]; then

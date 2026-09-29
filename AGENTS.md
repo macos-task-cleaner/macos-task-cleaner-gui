@@ -82,6 +82,19 @@ This document defines the architectural conventions, engineering rules, and hard
   * Both row types must attach full native `.contextMenu` containing `Reveal in Finder` (`folder`), clipboard tools (`doc.on.doc`, `number`), and tier/lifecycle actions.
   * Secondary menus (such as the action section split chevron and footer gear menu) must use SF Symbols with `Label(...)` for authentic macOS vibrancy aesthetics.
 
+### H. Accessibility Permission & TCC Synchronization
+* **Problem**:
+  1. Polling via default RunLoop mode (`Timer.scheduledTimer`) gets frozen during AppKit menu tracking (`NSEventTrackingRunLoopMode`), preventing live UI updates while the menu is open.
+  2. Ad-hoc signed binaries (`codesign -s -`) bind permissions strictly to their ephemeral CDHash. Recompiling invalidates prior TCC grants in System Settings.
+  3. Menus with warning symbols (`exclamationmark.triangle`) look like errors; they must use the standard system accessibility symbol (`accessibility`) and display `✓` upon authorization.
+  4. Top prompt banners can disrupt window geometry if `appListView` does not dynamically subtract banner height from its 230pt baseline.
+* **Rule**:
+  * Always register `DistributedNotificationCenter.default().addObserver(forName: NSNotification.Name("com.apple.accessibility.api"))` to receive instant system-wide authorization broadcasts.
+  * Always schedule monitoring timers on `RunLoop.main` in `.common` mode so tracking menus never starve detection.
+  * Use the standard system `accessibility` symbol for accessibility settings items and inline banners.
+  * `appListView` must dynamically calculate `listHeight = 230.0 - (launchPrompt ? 65 : 0) - (accessibilityPrompt ? 34 : 0)` to guarantee the 460pt total window height remains rigid and bottom toolbars are never pushed out.
+  * `scripts/build_app.sh install` must always execute `swift build -c release` to ensure new code changes are physically compiled into the app bundle.
+
 ---
 
 ## 4. Build & Verification Tiering (CRITICAL EFFICIENCY RULE)
@@ -95,30 +108,35 @@ This document defines the architectural conventions, engineering rules, and hard
    * Only run `./scripts/build_app.sh arm64` when the user explicitly requests full DMG release packaging or a production distribution binary.
    * If running `build_app.sh` in the background, never poll `manage_task status`; wait for reactive completion notification.
 
-3. **Application Installation Throttling**:
-   * Do NOT automatically terminate (`pkill -f TaskCleanerGUI`) and overwrite `/Applications/TaskCleaner.app` on minor UI/logic iterations.
-   * Only deploy to `/Applications` when the user explicitly instructs to run/test the installed app in the system menu bar.
+3. **Post-Bugfix Build & Launch Protocol (MANDATORY)**:
+   * After completing any bug fix or functional modification, the agent **MUST** automatically execute the following commands to install and launch the updated application for user testing:
+     ```bash
+     # 1. 编译并安装到 /Applications (耗时约 5-8 秒，仅组装应用 Bundle 与本地签名，自动跳过 DMG 打包)
+     ./scripts/build_app.sh install
+
+     # 2. 重新启动已安装的应用供用户测试
+     open /Applications/TaskCleaner.app
+     ```
+   * Never run full DMG packaging (`./scripts/build_app.sh arm64` / `all`) for bug testing; strictly use `./scripts/build_app.sh install`.
 
 ---
 
-## 5. Internationalization (I18n) Decoupling & Manual Trigger (STRICT)
+## 5. Internationalization (I18n) Manual Trigger Policy (STRICT IRONCLAD RULE)
 
-* **Decoupling Principle**: Full multi-lingual dictionary synchronization (`Sources/I18n.swift`) is strictly decoupled from daily feature development and UI prototyping.
-* **Prohibited**:
-  - Never proactively modify `Sources/I18n.swift` (adding new `I18nKey` enums or multi-lingual dictionary entries) during routine UI adjustments, bug fixes, or incremental feature delivery.
-  - Never block a fast UI fix on four-language dictionary synchronization.
+* **User Manual Trigger Only (绝对禁止自动翻译)**:
+  - **I18n 的翻译和多语言字典同步只有用户显式手动触发才能执行**。
+  - 严禁未经用户明确下达翻译指令（如“同步多语言”、“更新 i18n”、“做国际化”、“翻译文案”）就在修复 bug 或调整 UI 时擅自修改 `Sources/I18n.swift`、添加多语种字典条目或进行多语言机翻。
 * **Daily Development / Fast Iteration Rule**:
-  - Use inline string literals (e.g. `Text("...")`, `Button("...")`, `Label("...")`) or raw string fallbacks directly in SwiftUI views for new UI elements, labels, or toggles.
-* **Manual Trigger Requirement (User-Driven)**:
-  - Agent must ONLY update `Sources/I18n.swift` when the user **explicitly commands** it (e.g., "同步多语言", "更新 i18n", "翻译新加的文案", "做国际化").
-  - When explicitly triggered by the user:
-    - Prepare all language updates (key enum, `.en`, `.zhHans`, `.zhHant`) in memory and apply them in a **single atomic edit** (or via `python3 scripts/update_i18n.py`);
-    - Strictly prohibited from performing fragmented 4-way slice editing.
+  - 日常修复与界面微调中，优先使用直观文案或现有既有字段；界面临时文案直接使用内联字符串字面量（`Text("...")`、`Label("...")`）。
+* **When Explicitly Commanded by User**:
+  - 当且仅当用户显式下达国际化命令时，方可批量准备所有语言（`.en`, `.zhHans`, `.zhHant` 等），并在单次原子批处理中修改（或通过 `python3 scripts/update_i18n.py`），严禁碎裂化 4-way 切片式编辑。
 
 ---
 
 ## 6. Documentation & Version Control Throttling
 
+* **Post-Bugfix Documentation Synchronization (Continuous Learning)**:
+  - After completing each bug fix or resolving a system/UI constraint, the agent **MUST** concisely record the core lesson, root cause pitfall, or architectural rule in `AGENTS.md` (e.g. under Lessons Learned, Build Protocols, or Architecture) to preserve knowledge across future development turns.
 * **Inheritance & Architecture Docs**: 
   - Do NOT rewrite or re-export `PROJECT_INHERITANCE_GUIDE.md` or large summary documents for minor UI tweaks or single-property additions.
   - Only update backlog items upon full completion of a major milestone (e.g. Backlog #2, Backlog #3).

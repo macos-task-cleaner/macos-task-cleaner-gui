@@ -227,11 +227,11 @@ public struct TaskCleanerMenuView: View {
         }
     }
 
-    // MARK: - 辅助功能权限极简轻量横条 (原生精致排版，免除视觉侵占)
+    // MARK: - 辅助功能权限精致提示条 (微型胶囊排版，紧凑优雅，严防尺寸溢出)
     private var accessibilityInlineBanner: some View {
         HStack(spacing: 6) {
-            Image(systemName: "command")
-                .font(.system(size: 10, weight: .semibold))
+            Image(systemName: "accessibility")
+                .font(.system(size: 10.5, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
 
             Text(i18n.t(.accessibility_prompt_title))
@@ -262,13 +262,14 @@ public struct TaskCleanerMenuView: View {
             .buttonStyle(.plain)
         }
         .padding(.horizontal, 9)
-        .padding(.vertical, 5)
+        .padding(.vertical, 4.5)
+        .frame(height: 24)
         .background(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: 6)
                 .fill(Color.accentColor.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 7)
+            RoundedRectangle(cornerRadius: 6)
                 .strokeBorder(Color.accentColor.opacity(0.2), lineWidth: 0.6)
         )
     }
@@ -429,7 +430,13 @@ public struct TaskCleanerMenuView: View {
 
     // MARK: - 动态自适应应用列表区 (恒定高度刚性卡片，保证窗口几何绝对恒定)
     private var appListView: some View {
-        let listHeight: CGFloat = launchManager.shouldShowPrompt ? 165.0 : 230.0
+        var listHeight: CGFloat = 230.0
+        if launchManager.shouldShowPrompt {
+            listHeight -= 65.0
+        }
+        if accessibilityManager.shouldShowPrompt {
+            listHeight -= 34.0
+        }
 
         return SystemCard(cornerRadius: 10) {
             ScrollView(.vertical, showsIndicators: true) {
@@ -705,15 +712,20 @@ public struct TaskCleanerMenuView: View {
                     Divider()
 
                     Menu {
-                        if !accessibilityManager.isTrusted {
-                            Button(action: {
+                        Button(action: {
+                            if !accessibilityManager.isTrusted {
                                 accessibilityManager.requestAuthorization()
-                            }) {
-                                Label(i18n.t(.menu_grant_accessibility), systemImage: "exclamationmark.triangle")
+                            } else {
+                                accessibilityManager.openAccessibilitySettings()
                             }
-
-                            Divider()
+                        }) {
+                            Label(
+                                accessibilityManager.isTrusted ? "\(i18n.t(.menu_accessibility_status))  ✓" : i18n.t(.menu_accessibility_status),
+                                systemImage: "accessibility"
+                            )
                         }
+
+                        Divider()
 
                         ForEach(ShortcutPreset.allCases) { preset in
                             Button(action: {
