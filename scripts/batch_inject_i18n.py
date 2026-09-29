@@ -29,8 +29,8 @@ def inject_translations(json_path, i18n_path="Sources/I18n.swift"):
         if not isinstance(keys_dict, dict) or not keys_dict:
             continue
 
-        # Match the language dictionary block: .<lang>: [\n...\n    ],
-        pattern = rf"(\.{lang}:\s*\[[\s\S]*?)(\n    \],)"
+        # Match the language dictionary block: .<lang>: [\n...\n    ], or \n    ]
+        pattern = rf"(\.{lang}:\s*\[[\s\S]*?)(\n    \],?)"
         match = re.search(pattern, content)
         if not match:
             print(f"[WARN] Language block for .{lang} not found in {i18n_path}")
