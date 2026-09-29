@@ -18,7 +18,7 @@
   <a href="https://swift.org/"><img src="https://img.shields.io/badge/Swift-5.9%2B-F05138?logo=swift&logoColor=white" alt="Swift: 5.9+" /></a>
   <img src="https://img.shields.io/badge/UI-SwiftUI%20%7C%20AppKit-007AFF?logo=swift&logoColor=white" alt="UI: SwiftUI | AppKit" />
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Core%20Engine-Rust-dea584?logo=rust&logoColor=white" alt="Core Engine: Rust" /></a>
-  <img src="https://img.shields.io/badge/Languages-24%20Locales-teal" alt="Languages: 24 Locales" />
+  <img src="https://img.shields.io/badge/Languages-24%20Locales%20(100%25)-teal" alt="Languages: 24 Locales (100%)" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-GNU%20AGPLv3-blue" alt="License: GNU AGPLv3" /></a>
   <a href="COMMERCIAL.md"><img src="https://img.shields.io/badge/Commercial-License%20Available-orange" alt="Commercial License Available" /></a>
 </p>
@@ -38,18 +38,32 @@ A native macOS menu bar status item application for high-precision foreground ap
 ## Key Features
 
 * **Native Menu Bar Status Item**: Resides quietly in the macOS menu bar with a live badge displaying the number of active foreground tasks.
+* **Deep Multi-Process & Virtual Machine Telemetry**:
+  * Penetrates complex architectures (Chrome renderers, Electron helper daemons, Xcode build workers) and virtual machine hypervisors (Parallels Desktop `prl_vm_app`, Docker) across UID 0 / root boundaries.
+  * Aggregates process tree lineages (PPID) and application bundle directory ownership to accurately surface true total memory (RSS) and CPU footprint (e.g. measuring a full 6GB VM instead of only the ~200MB front GUI wrapper).
+* **Multi-Dimensional Metrics & Dynamic Sorting**:
+  * Sort active processes on the fly by Composite Impact Score, Memory (RAM), CPU Usage, or On-Screen Window Count.
+  * Toggle real-time memory/CPU readouts, window count badges, and Bundle Identifiers directly in the settings menu.
 * **Three-Part Summary Dashboard**:
   * **Clear Foreground Apps**: Real-time counter of unwhitelisted foreground applications scheduled for cleanup.
   * **Keep Active / Protected**: Count of protected applications across L1-L4 whitelist tiers.
   * **Total Active Apps**: Quick overview of all discovered foreground graphical processes.
-* **Granular Process Control**:
+* **Granular Process Control & Context Menus**:
   * **Individual Trash Icon**: Terminate specific foreground applications instantly with a single click.
   * **One-Click Whitelist Toggle**: Add or remove applications from persistent configuration directly from the list.
+  * **Native Context Menu**: Right-click any application row to Reveal in Finder, Copy PID, Copy Bundle ID, or reassign whitelist tier.
+* **Built-in CLI (`mtc`) Manager**:
+  * One-click installation of the bundled native Rust `mtc` CLI into `~/.local/bin` or `/usr/local/bin`.
+  * Automated shell detection and PATH configuration for `.zshrc`.
+  * Integrated terminal test runner and symlink health diagnostics.
+* **Global Shortcut & Zero-Stall Accessibility TCC Sensing**:
+  * Configurable global hotkey (default `Option + Space`) to summon the cleanup panel from any workspace.
+  * Non-blocking accessibility permission sensing via `DistributedNotificationCenter`, preventing RunLoop stalls during menu tracking.
 * **Clean All One-Click Action**: Smoothly terminates all unexempted foreground tasks simultaneously.
 * **Native AppKit Finder Voluntary Quit**: Quits Finder using AppKit `NSRunningApplication.terminate()` to prevent `launchd` from treating it as an abnormal crash and immediately respawning it.
 * **Non-Intrusive POSIX Escalation**: Triggers `SIGTERM -> polling grace period -> SIGKILL` sequence, bypassing modal save/confirm dialogs without system friction.
 * **Authentic macOS System Utility Styling**: Follows Apple Human Interface Guidelines with dark chassis aesthetics, technical micro-grid backgrounds, and crisp typography.
-* **24 Global Languages & Automatic Locale Detection**: Automatically detects macOS system locale across 24 languages with seamless runtime switching.
+* **100% 24 Global Languages & RTL Support**: Complete translation coverage (116/116 keys) across 24 languages with native macOS terminology and full Right-to-Left (RTL) mirroring for Arabic.
 * **Modern Launch at Login**: Native macOS 13+ `SMAppService` integration with zero background daemon overhead.
 
 ---
@@ -91,11 +105,14 @@ open /Applications/TaskCleaner.app
 * `Sources/TaskCleanerApp.swift`: Application entry point and `MenuBarExtra` declaration with template tray icon.
 * `Sources/TaskCleanerMenuView.swift`: SwiftUI interactive popover, dynamic height coordinator, list rows, and action menus.
 * `Sources/TaskCleanerViewModel.swift`: State machine management, process scanning, and asynchronous termination dispatch.
-* `Sources/MTCBridge.swift`: Communication bridge with the `mtc` core engine and TOML configuration files.
+* `Sources/MTCBridge.swift`: Communication bridge with the embedded `mtc` core engine and TOML configuration files.
+* `Sources/ProcessTelemetrySampler.swift`: Real-time AppKit/CoreGraphics process telemetry sampler for deep memory, CPU usage, and on-screen window counts.
+* `Sources/CliIntegrationManager.swift`: Automated CLI symlink installer, shell PATH configurator, and terminal test coordinator.
+* `Sources/LiquidGlassComponents.swift`: Native macOS visual effect wrappers (`VisualEffectBackground`, `SystemCard`, `SystemBadge`, `WindowAutoResizer`).
 * `Sources/LaunchAtLoginManager.swift`: Native `SMAppService` launch-at-login integration and first-run onboarding coordinator.
-* `Sources/I18n.swift`: 24-language internationalization registry and runtime locale switcher.
+* `Sources/I18n.swift`: 24-language internationalization registry with 100% coverage and runtime locale switching.
 * `Sources/Models.swift`: Data models and high-resolution AppKit icon resolution.
-* `scripts/build_app.sh`: Automated release compilation, App Bundle assembly, and DMG drag-and-drop packaging.
+* `scripts/build_app.sh`: Automated release compilation, incremental Rust core check, App Bundle assembly, and DMG drag-and-drop packaging.
 * `scripts/generate_app_icon.swift`: Native vector icon generator for `AppIcon.icns`.
 * `scripts/generate_dmg_background.swift`: Retina 2x DMG drag-and-drop installer background generator.
 
@@ -103,12 +120,17 @@ open /Applications/TaskCleaner.app
 
 ## Command-Line Tool Companion
 
-If you prefer terminal-driven workflows, shell scripts, or automation shortcuts, you can also install the companion command-line client **`mtc`**:
+The native Rust command-line companion **`mtc`** is embedded directly within `Task Cleaner.app`. You can install it into your shell in seconds:
 
+1. Open `Task Cleaner` from your menu bar.
+2. Click the gear icon at the bottom right and select **Install Command Line Tool (`mtc`)**.
+3. The app automatically creates a symlink in `~/.local/bin` or `/usr/local/bin` and ensures your shell PATH (`~/.zshrc`) is properly configured.
+
+For standalone CLI usage and source code:
 * **CLI Repository**: [macos-task-cleaner-cli](https://github.com/macos-task-cleaner/macos-task-cleaner-cli)
 * **Core Engine**: [macos-task-cleaner-core](https://github.com/macos-task-cleaner/macos-task-cleaner-core)
 
-The GUI application shares the same underlying configuration file (`~/.config/mtc/config.toml`) with the CLI tool, so whitelist rules added via the GUI or terminal stay synchronized automatically.
+The GUI application and CLI tool share the same underlying configuration file (`~/.config/mtc/config.toml`), ensuring all whitelist rules and exemptions remain seamlessly synchronized.
 
 ---
 

@@ -18,7 +18,7 @@
   <a href="https://swift.org/"><img src="https://img.shields.io/badge/编程语言-Swift%205.9%2B-F05138?logo=swift&logoColor=white" alt="Swift: 5.9+" /></a>
   <img src="https://img.shields.io/badge/界面库-SwiftUI%20%7C%20AppKit-007AFF?logo=swift&logoColor=white" alt="UI: SwiftUI | AppKit" />
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/核心引擎-Rust-dea584?logo=rust&logoColor=white" alt="核心引擎: Rust" /></a>
-  <img src="https://img.shields.io/badge/国际化-24%20种常用语言-teal" alt="语言: 24 种语言" />
+  <img src="https://img.shields.io/badge/国际化-24%20种语言%20(100%25)-teal" alt="国际化: 24 种语言 (100%)" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/开源协议-GNU%20AGPLv3-blue" alt="开源协议: GNU AGPLv3" /></a>
   <a href="COMMERCIAL.md"><img src="https://img.shields.io/badge/商业许可-可授权-orange" alt="商业许可: 可授权" /></a>
 </p>
@@ -38,18 +38,32 @@
 ## 核心特性
 
 * **原生菜单栏常驻 (Menu Bar Extra)**：优雅驻留在 macOS 顶部菜单栏，采用纯净白色药丸镂空图标，实时展示未受保护的前台活跃进程计数。
+* **多进程树与虚拟机内核级深度遥测**：
+  * 深度穿透复杂多进程架构（Chrome 渲染及辅助进程、Electron 后台守护、Xcode 编译分发节点）与虚拟化 Hypervisor 开销（Parallels Desktop `prl_vm_app`、Docker），打通跨 UID 0 / root 权限隔离壁垒。
+  * 结合 PPID 祖先树溯源与应用 Bundle 目录归属判定，精准聚合全量物理内存 (RSS) 与 CPU 真实消耗（例如准确捕获并汇总 Parallels 虚拟机的完整 6GB 运行内存，彻底解决传统监控仅识别 ~200MB 前台界面的失真问题）。
+* **多维度性能指标与动态实时排序**：
+  * 支持按综合负载评分、物理内存占用 (RAM)、CPU 使用率、屏幕可见窗口数四种维度实时动态排序。
+  * 支持在设置菜单中自由开关内存与 CPU 实时度量、窗口数统计徽标及应用包标识符 (Bundle Identifier) 的展示。
 * **三段式清晰状态栏统计**：
   * **待清理前台任务**：实时统计当前命中清理范围、即将被退出的前台应用数量。
   * **保留常驻 / 已保护**：展示处于 L1 至 L4 各保护层级中的应用总数。
   * **查看全部活动应用**：展开查看当前系统所有活跃前台图形应用。
-* **精细化单任务控制**：
+* **精细化单任务控制与原生上下文菜单**：
   * **单应用独立结束**：列表项右侧提供小垃圾桶图标，支持精准单独退出特定进程。
   * **一键加白与取消**：列表项右侧提供加锁/盾牌图标，点击可一键添加至用户白名单或移除保护。
+  * **原生右键上下文菜单**：在任意应用项上右键呼出完整系统菜单，支持在访达中显示、拷贝 PID、拷贝 Bundle ID 及快速分级调整白名单。
+* **内置伴生命令行 (`mtc`) 终端管理**：
+  * 原生 Rust `mtc` 二进制核心已直接预置打包于应用内，支持在图形界面设置中一键软链接安装至 `~/.local/bin` 或 `/usr/local/bin`。
+  * 自动检测终端 Shell 环境并智能写入 PATH 环境变量配置 (`~/.zshrc`)。
+  * 内置终端功能连通性实时测试与软链接健康度诊断。
+* **全局快捷键与无感知辅助功能 TCC 监听**：
+  * 支持可自定义的全局快捷键（默认 `Option + Space`），在任意全屏空间与桌面一键即时呼出清理控制台。
+  * 接入 `DistributedNotificationCenter` 监听系统无障碍授权广播 (`com.apple.accessibility.api`)，彻底消除菜单跟踪期间的 RunLoop 轮询卡顿。
 * **一键全部清理**：点击底部的“全部清理”按钮，瞬时优雅平稳退出全部未加白的前台应用。
 * **原生 AppKit 访达 (Finder) 退出协议**：通过调用 `NSRunningApplication.terminate()` 退出访达，使系统守护进程 `launchd` 识别为自愿退出，彻底解决传统 POSIX `kill` 导致的“闪退又瞬间弹回”复活死循环。
 * **无损分级降级清场**：触发 `SIGTERM -> 宽限期轮询 -> SIGKILL` 三段式安全退出协议，绕过应用层阻塞式保存确认弹窗。
 * **对标系统级实用工具质感**：严格遵循 Apple HIG 规范，采用深色监视器屏幕基底、暗调微网格与微浮雕操作按钮。
-* **原生适配 24 种国际主流语言与自动识别**：智能跟随 macOS 系统的首选语言偏好自动匹配，涵盖英语、简体中文、繁体中文、日语、韩语、法语、德语、西班牙语、葡萄牙语、意大利语、俄语、荷兰语、波兰语、土耳其语、阿拉伯语、泰语、越南语、印尼语、瑞典语、丹麦语、挪威语、芬兰语、捷克语、乌克兰语，并在底栏提供即时语言切换菜单。
+* **100% 完整覆盖 24 种国际语言与 RTL 支持**：全部 24 种语言均已达成 100% 词条全量覆盖（116/116 键），遵循 Apple 官方本地化术语体系，完美支持阿拉伯语等从右向左 (RTL) 界面的原生镜像翻转布局。
 * **开机自启动引导与常驻守护**：基于 macOS 13+ 原生 `SMAppService` 框架构建，零后台守护常驻开销，支持在设置菜单随时一键开关。
 
 ---
@@ -92,10 +106,13 @@ open /Applications/TaskCleaner.app
 * `Sources/TaskCleanerMenuView.swift`：SwiftUI 交互浮层面板、动态高度协调器、应用行视图与操作菜单
 * `Sources/TaskCleanerViewModel.swift`：状态机管理、异步扫描与清场调度
 * `Sources/MTCBridge.swift`：与底层 `mtc` 引擎及 TOML 配置的通信桥接层
+* `Sources/ProcessTelemetrySampler.swift`：基于 AppKit 与 CoreGraphics 的实时深度多进程内存、CPU 与窗口遥测采样器
+* `Sources/CliIntegrationManager.swift`：内置伴生 CLI 软链接自动化部署、PATH 环境变量注入与终端测试协调器
+* `Sources/LiquidGlassComponents.swift`：原生视觉材质封装与 `MenuBarExtraWindow` 动态尺寸协调器
 * `Sources/LaunchAtLoginManager.swift`：原生 `SMAppService` 开机自启动集成与首次引导协调器
-* `Sources/I18n.swift`：24 种常用语言国际化注册表与运行时多语言切换器
+* `Sources/I18n.swift`：24 种语言 100% 完整词条国际化注册表与运行时多语言切换器
 * `Sources/Models.swift`：数据模型定义与应用图标动态提取
-* `scripts/build_app.sh`：自动编译、`TaskCleaner.app` 组装及 DMG 可视化拖拽安装盘生成脚本
+* `scripts/build_app.sh`：自动编译、增量 Rust 核心检查、`TaskCleaner.app` 组装及 DMG 可视化拖拽安装盘生成脚本
 * `scripts/generate_app_icon.swift`：应用官方 AppIcon 矢量生成器
 * `scripts/generate_dmg_background.swift`：2x Retina 分辨率 DMG 拖拽安装背景图生成器
 
@@ -103,8 +120,13 @@ open /Applications/TaskCleaner.app
 
 ## 命令行客户端伴随工具
 
-如果您习惯纯键盘终端环境、脚本自动化或 Raycast/快捷指令调度，可额外使用配套的独立命令行客户端 **`mtc`**：
+原生的 Rust 命令行客户端 **`mtc`** 已经直接集成内置在 `Task Cleaner.app` 内部。您可以在数秒内将其配置到终端：
 
+1. 从菜单栏打开 `Task Cleaner`。
+2. 点击右下角齿轮设置图标，选择 **安装命令行工具 (`mtc`)**。
+3. 应用将自动在 `~/.local/bin` 或 `/usr/local/bin` 中创建软链接，并自动完成 Shell PATH (`~/.zshrc`) 配置。
+
+如需独立使用或参与 CLI 源码开发：
 * **CLI 仓库**：[macos-task-cleaner-cli](https://github.com/macos-task-cleaner/macos-task-cleaner-cli)
 * **核心引擎**：[macos-task-cleaner-core](https://github.com/macos-task-cleaner/macos-task-cleaner-core)
 
