@@ -1,0 +1,247 @@
+[
+  {
+    "key": "accessibility_prompt_desc",
+    "en": "Global shortcut requires Accessibility permission to detect hotkeys across applications.",
+    "zh_hans": "全局快捷键需要辅助功能权限以确保在后台及各应用中稳定触发。",
+    "zh_hant": "全域快捷鍵需要輔助功能權限以確保在後台及各應用程式中穩定觸發。",
+    "has_placeholder": false
+  },
+  {
+    "key": "accessibility_prompt_title",
+    "en": "Global Shortcut Accessibility Access",
+    "zh_hans": "全局快捷键未开启辅助功能",
+    "zh_hant": "全域快捷鍵未開啟輔助功能",
+    "has_placeholder": false
+  },
+  {
+    "key": "btn_add_to_zshrc",
+    "en": "Add to ~/.zshrc",
+    "zh_hans": "自动写入 ~/.zshrc",
+    "zh_hant": "自動寫入 ~/.zshrc",
+    "has_placeholder": false
+  },
+  {
+    "key": "btn_grant_permission",
+    "en": "Enable",
+    "zh_hans": "去开启",
+    "zh_hant": "去開啟",
+    "has_placeholder": false
+  },
+  {
+    "key": "cli_label_ready",
+    "en": "Ready",
+    "zh_hans": "已就绪",
+    "zh_hant": "已就緒",
+    "has_placeholder": false
+  },
+  {
+    "key": "cli_status_broken",
+    "en": "Broken Link",
+    "zh_hans": "软链接失效",
+    "zh_hant": "軟連結失效",
+    "has_placeholder": false
+  },
+  {
+    "key": "cli_status_installed",
+    "en": "Installed",
+    "zh_hans": "已安装",
+    "zh_hant": "已安裝",
+    "has_placeholder": false
+  },
+  {
+    "key": "cli_status_not_installed",
+    "en": "Not Installed in PATH",
+    "zh_hans": "未安装到终端 PATH",
+    "zh_hant": "未安裝到終端機 PATH",
+    "has_placeholder": false
+  },
+  {
+    "key": "install_cli_path_missing_desc",
+    "en": "The 'mtc' tool has been linked to:\\n%@\\n\\nNotice: This directory is not currently in your shell's PATH environment. Would you like to append it to ~/.zshrc?",
+    "zh_hans": "已将 mtc 软链接至:\\n%@\\n\\n提示: 检测到该目录尚未包含在当前终端的 PATH 环境变量中。是否自动将其添加至 ~/.zshrc？",
+    "zh_hant": "已將 mtc 軟連結至:\\n%@\\n\\n提示: 偵測到該目錄尚未包含在目前終端機的 PATH 環境變數中。是否自動將其加入至 ~/.zshrc？",
+    "has_placeholder": true
+  },
+  {
+    "key": "install_cli_path_missing_title",
+    "en": "Directory Not in PATH",
+    "zh_hans": "目录未包含在 PATH 中",
+    "zh_hant": "目錄未包含在 PATH 中",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_accessibility_status",
+    "en": "Accessibility Permission",
+    "zh_hans": "无障碍权限",
+    "zh_hant": "無障礙權限",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_cli_tools",
+    "en": "Command-Line Tool (mtc)",
+    "zh_hans": "命令行工具 (mtc)",
+    "zh_hant": "命令列工具 (mtc)",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_grant_accessibility",
+    "en": "Grant Accessibility Access...",
+    "zh_hans": "授予辅助功能权限...",
+    "zh_hant": "授予輔助功能權限...",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_install_cli_system",
+    "en": "Install to /usr/local/bin (All Users)",
+    "zh_hans": "安装到 /usr/local/bin (所有用户)",
+    "zh_hant": "安裝到 /usr/local/bin (所有使用者)",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_install_cli_user",
+    "en": "Install to ~/.local/bin (Recommended)",
+    "zh_hans": "安装到 ~/.local/bin (当前用户推荐)",
+    "zh_hant": "安裝到 ~/.local/bin (目前使用者推薦)",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_reveal_cli_finder",
+    "en": "Reveal in Finder",
+    "zh_hans": "在访达中显示",
+    "zh_hant": "在 Finder 中顯示",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_show_app_identifier",
+    "en": "Show App Identifier",
+    "zh_hans": "显示应用标识符",
+    "zh_hant": "顯示應用程式識別碼",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_show_detailed_metrics",
+    "en": "Show Resource Metrics",
+    "zh_hans": "显示详细资源数值",
+    "zh_hant": "顯示詳細資源數值",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_show_sort_button",
+    "en": "Show Sort Button in Header",
+    "zh_hans": "顶栏显示排序按钮",
+    "zh_hant": "頂欄顯示排序按鈕",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_terminal_picker",
+    "en": "Test Terminal",
+    "zh_hans": "测试终端",
+    "zh_hant": "測試終端機",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_test_cli_terminal",
+    "en": "Test in Terminal (mtc --help)",
+    "zh_hans": "在终端中测试运行 (mtc --help)",
+    "zh_hant": "在終端機中測試執行 (mtc --help)",
+    "has_placeholder": false
+  },
+  {
+    "key": "menu_test_in_terminal_format",
+    "en": "Test in %@ (mtc --help)",
+    "zh_hans": "在 %@ 中测试运行 (mtc --help)",
+    "zh_hant": "在 %@ 中測試執行 (mtc --help)",
+    "has_placeholder": true
+  },
+  {
+    "key": "menu_uninstall_cli",
+    "en": "Remove 'mtc' from PATH",
+    "zh_hans": "从 PATH 中移除软链接",
+    "zh_hant": "從 PATH 中移除軟連結",
+    "has_placeholder": false
+  },
+  {
+    "key": "shortcut_recorder_accessibility_warning",
+    "en": "Accessibility permission is required for global hotkeys to trigger outside this window.",
+    "zh_hans": "全局热键需授予辅助功能权限方可在其他应用中激活。",
+    "zh_hant": "全域熱鍵需授予輔助功能權限方可在其他應用程式中啟動。",
+    "has_placeholder": false
+  },
+  {
+    "key": "sort_by",
+    "en": "Sort",
+    "zh_hans": "排序方式",
+    "zh_hant": "排序方式",
+    "has_placeholder": false
+  },
+  {
+    "key": "sort_composite",
+    "en": "Composite Load",
+    "zh_hans": "综合负载",
+    "zh_hant": "綜合負載",
+    "has_placeholder": false
+  },
+  {
+    "key": "sort_cpu",
+    "en": "CPU Usage",
+    "zh_hans": "CPU 占用",
+    "zh_hant": "處理器占用",
+    "has_placeholder": false
+  },
+  {
+    "key": "sort_default",
+    "en": "Default Order",
+    "zh_hans": "默认顺序",
+    "zh_hant": "預設順序",
+    "has_placeholder": false
+  },
+  {
+    "key": "sort_memory",
+    "en": "Memory Usage",
+    "zh_hans": "内存占用",
+    "zh_hant": "記憶體占用",
+    "has_placeholder": false
+  },
+  {
+    "key": "sort_windows",
+    "en": "Window Count",
+    "zh_hans": "窗口数量",
+    "zh_hant": "視窗數量",
+    "has_placeholder": false
+  },
+  {
+    "key": "status_accessibility_granted",
+    "en": "Accessibility permission granted",
+    "zh_hans": "辅助功能权限已授予",
+    "zh_hant": "輔助功能權限已授予",
+    "has_placeholder": false
+  },
+  {
+    "key": "status_cli_uninstalled",
+    "en": "Removed 'mtc' CLI symlink",
+    "zh_hans": "已移除 mtc 命令行软链接",
+    "zh_hant": "已移除 mtc 命令列軟連結",
+    "has_placeholder": false
+  },
+  {
+    "key": "status_zshrc_updated",
+    "en": "Appended PATH to ~/.zshrc",
+    "zh_hans": "已成功将 PATH 写入 ~/.zshrc",
+    "zh_hant": "已成功將 PATH 寫入 ~/.zshrc",
+    "has_placeholder": false
+  },
+  {
+    "key": "unit_window_singular",
+    "en": "window",
+    "zh_hans": "窗口",
+    "zh_hant": "視窗",
+    "has_placeholder": false
+  },
+  {
+    "key": "unit_windows",
+    "en": "windows",
+    "zh_hans": "窗口",
+    "zh_hant": "視窗",
+    "has_placeholder": false
+  }
+]

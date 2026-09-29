@@ -407,6 +407,7 @@ private let translations: [AppLanguage: [I18nKey: String]] = [
         .btn_cancel: "Cancel",
         .launch_at_login_menu: "Launch at Login",
         .status_launch_enabled: "Launch at login enabled",
+        .status_launch_disabled: "Launch at login disabled",
         .btn_about: "About Task Cleaner",
         .action_reveal_in_finder: "Reveal in Finder",
         .action_copy_pid: "Copy Process ID (PID)",
