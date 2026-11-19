@@ -203,172 +203,193 @@ public struct ShortcutRecorderView: View {
     var onClose: () -> Void
 
     public var body: some View {
-        VStack(spacing: 18) {
-            // Header
-            HStack(spacing: 12) {
-                Image(systemName: "keyboard")
-                    .font(.system(size: 24))
-                    .foregroundStyle(.tint)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(i18n.t(.shortcut_recorder_title))
-                        .font(.headline)
-                    Text(i18n.t(.shortcut_recorder_desc))
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+        ZStack {
+            VisualEffectBackground(material: .popover, blendingMode: .behindWindow)
+                .ignoresSafeArea()
+
+            VStack(spacing: 16) {
+                // Header
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.12))
+                            .frame(width: 34, height: 34)
+                        Image(systemName: "keyboard")
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(.tint)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(i18n.t(.shortcut_recorder_title))
+                            .font(.system(size: 13.5, weight: .semibold))
+                        Text(i18n.t(.shortcut_recorder_desc))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
-                Spacer()
-            }
 
-            // Key Display Area
-            ZStack {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color(nsColor: .controlBackgroundColor))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(
-                                vm.hasValidRecordedShortcut ? Color.accentColor : Color.secondary.opacity(0.3),
-                                lineWidth: vm.hasValidRecordedShortcut ? 2 : 1
-                            )
-                    )
+                // Key Display Area
+                ZStack {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(.thinMaterial)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                .strokeBorder(
+                                    vm.hasValidRecordedShortcut ? Color.accentColor.opacity(0.75) : Color.primary.opacity(0.1),
+                                    lineWidth: vm.hasValidRecordedShortcut ? 1.5 : 0.75
+                                )
+                        )
 
-                if let keyCode = vm.recordedKeyCode, !vm.recordedModifiers.isEmpty {
+                    if let keyCode = vm.recordedKeyCode, !vm.recordedModifiers.isEmpty {
+                        HStack(spacing: 8) {
+                            if vm.recordedModifiers.contains(.control) {
+                                keyBadge("⌃ Control")
+                            }
+                            if vm.recordedModifiers.contains(.option) {
+                                keyBadge("⌥ Option")
+                            }
+                            if vm.recordedModifiers.contains(.shift) {
+                                keyBadge("⇧ Shift")
+                            }
+                            if vm.recordedModifiers.contains(.command) {
+                                keyBadge("⌘ Command")
+                            }
+                            let keyStr = KeyCodeHelper.keyString(for: keyCode)
+                            if !keyStr.isEmpty {
+                                keyBadge(keyStr, isPrimary: true)
+                            }
+
+                            Spacer()
+
+                            Button(action: {
+                                vm.clear()
+                            }) {
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 15))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(i18n.t(.btn_reset_shortcut))
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                    } else if !vm.activeModifiers.isEmpty {
+                        HStack(spacing: 8) {
+                            if vm.activeModifiers.contains(.control) {
+                                keyBadge("⌃")
+                            }
+                            if vm.activeModifiers.contains(.option) {
+                                keyBadge("⌥")
+                            }
+                            if vm.activeModifiers.contains(.shift) {
+                                keyBadge("⇧")
+                            }
+                            if vm.activeModifiers.contains(.command) {
+                                keyBadge("⌘")
+                            }
+                            Text("...")
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 14)
+                    } else {
+                        HStack(spacing: 6) {
+                            Image(systemName: "hand.tap")
+                                .font(.system(size: 13))
+                                .foregroundStyle(.secondary)
+                            Text(i18n.t(.shortcut_recorder_prompt))
+                                .font(.system(size: 12.5))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 18)
+                    }
+                }
+                .frame(height: 62)
+
+                // Hint Text
+                Text(i18n.t(.shortcut_recorder_hint))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+
+                // Accessibility Status Row (遵循规范 H：采用标准系统 accessibility 图标与内嵌胶囊条)
+                if !accessibilityManager.isTrusted {
                     HStack(spacing: 8) {
-                        if vm.recordedModifiers.contains(.control) {
-                            keyBadge("⌃ Control")
-                        }
-                        if vm.recordedModifiers.contains(.option) {
-                            keyBadge("⌥ Option")
-                        }
-                        if vm.recordedModifiers.contains(.shift) {
-                            keyBadge("⇧ Shift")
-                        }
-                        if vm.recordedModifiers.contains(.command) {
-                            keyBadge("⌘ Command")
-                        }
-                        let keyStr = KeyCodeHelper.keyString(for: keyCode)
-                        if !keyStr.isEmpty {
-                            keyBadge(keyStr, isPrimary: true)
-                        }
+                        Image(systemName: "accessibility")
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundStyle(Color.accentColor)
+
+                        Text(i18n.t(.shortcut_recorder_accessibility_warning))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
 
                         Spacer()
 
                         Button(action: {
-                            vm.clear()
+                            accessibilityManager.requestAuthorization()
                         }) {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.system(size: 15))
-                                .foregroundStyle(.secondary)
+                            Text(i18n.t(.btn_grant_permission))
+                                .font(.system(size: 10.5, weight: .semibold))
                         }
-                        .buttonStyle(.plain)
-                        .help(i18n.t(.btn_reset_shortcut))
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(Color.accentColor)
                     }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                } else if !vm.activeModifiers.isEmpty {
-                    HStack(spacing: 8) {
-                        if vm.activeModifiers.contains(.control) {
-                            keyBadge("⌃")
-                        }
-                        if vm.activeModifiers.contains(.option) {
-                            keyBadge("⌥")
-                        }
-                        if vm.activeModifiers.contains(.shift) {
-                            keyBadge("⇧")
-                        }
-                        if vm.activeModifiers.contains(.command) {
-                            keyBadge("⌘")
-                        }
-                        Text("...")
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 14)
-                } else {
-                    HStack(spacing: 6) {
-                        Image(systemName: "hand.tap")
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                        Text(i18n.t(.shortcut_recorder_prompt))
-                            .font(.system(size: 13))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 18)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.accentColor.opacity(0.08))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .strokeBorder(Color.accentColor.opacity(0.2), lineWidth: 0.6)
+                    )
                 }
-            }
-            .frame(height: 64)
 
-            // Hint Text
-            Text(i18n.t(.shortcut_recorder_hint))
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            // Accessibility Warning Row (若未授予辅助功能权限，展示提醒与授权入口)
-            if !accessibilityManager.isTrusted {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(Color(nsColor: .systemOrange))
-
-                    Text(i18n.t(.shortcut_recorder_accessibility_warning))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                // Action Buttons
+                HStack(spacing: 10) {
+                    Button(action: {
+                        vm.resetToDefault()
+                    }) {
+                        Text(i18n.t(.btn_restore_default))
+                            .font(.system(size: 11.5))
+                    }
+                    .buttonStyle(.borderless)
+                    .foregroundStyle(.secondary)
 
                     Spacer()
 
                     Button(action: {
-                        accessibilityManager.requestAuthorization()
+                        vm.clear()
                     }) {
-                        Text(i18n.t(.btn_grant_permission))
-                            .font(.system(size: 10.5, weight: .semibold))
+                        Text(i18n.t(.btn_reset_shortcut))
                     }
-                    .buttonStyle(.borderless)
-                    .foregroundStyle(Color.accentColor)
+
+                    Button(action: {
+                        vm.stopMonitoring()
+                        onClose()
+                    }) {
+                        Text(i18n.t(.btn_cancel))
+                    }
+                    .keyboardShortcut(.cancelAction)
+
+                    Button(action: {
+                        saveShortcut()
+                    }) {
+                        Text(i18n.t(.btn_save_shortcut))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(!vm.hasValidRecordedShortcut)
                 }
-                .padding(.horizontal, 4)
             }
-
-            // Action Buttons
-            HStack(spacing: 10) {
-                Button(action: {
-                    vm.resetToDefault()
-                }) {
-                    Text(i18n.t(.btn_restore_default))
-                }
-                .buttonStyle(.borderless)
-                .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Button(action: {
-                    vm.clear()
-                }) {
-                    Text(i18n.t(.btn_reset_shortcut))
-                }
-
-                Button(action: {
-                    vm.stopMonitoring()
-                    onClose()
-                }) {
-                    Text(i18n.t(.btn_cancel))
-                }
-                .keyboardShortcut(.cancelAction)
-
-                Button(action: {
-                    saveShortcut()
-                }) {
-                    Text(i18n.t(.btn_save_shortcut))
-                }
-                .buttonStyle(.borderedProminent)
-                .keyboardShortcut(.defaultAction)
-                .disabled(!vm.hasValidRecordedShortcut)
-            }
+            .padding(22)
         }
-        .padding(22)
         .frame(width: 440)
+        .environment(\.layoutDirection, i18n.layoutDirection)
         .onAppear {
             vm.startMonitoring(
                 onClose: onClose,
@@ -385,14 +406,14 @@ public struct ShortcutRecorderView: View {
         Text(text)
             .font(.system(size: 12, weight: .semibold, design: .rounded))
             .padding(.horizontal, 10)
-            .padding(.vertical, 6)
+            .padding(.vertical, 5.5)
             .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isPrimary ? Color.accentColor.opacity(0.2) : Color.secondary.opacity(0.15))
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(isPrimary ? Color.accentColor.opacity(0.18) : Color.primary.opacity(0.08))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 6)
-                    .stroke(isPrimary ? Color.accentColor : Color.secondary.opacity(0.3), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .strokeBorder(isPrimary ? Color.accentColor.opacity(0.85) : Color.primary.opacity(0.15), lineWidth: 0.75)
             )
     }
 
@@ -432,6 +453,8 @@ public class ShortcutRecorderWindowController: NSWindowController {
         panel.titlebarAppearsTransparent = true
         panel.isMovableByWindowBackground = true
         panel.isReleasedWhenClosed = false
+        panel.isOpaque = false
+        panel.backgroundColor = .clear
         super.init(window: panel)
     }
 

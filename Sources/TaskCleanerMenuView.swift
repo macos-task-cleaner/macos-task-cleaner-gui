@@ -61,6 +61,9 @@ public struct TaskCleanerMenuView: View {
         }
     }
 
+    @State private var isHoveringRefresh: Bool = false
+    @State private var isHoveringSort: Bool = false
+
     // MARK: - Header (刚性固定尺寸与锚点，彻底解决图标跳动问题)
     private var headerSection: some View {
         HStack(spacing: 8) {
@@ -78,14 +81,17 @@ public struct TaskCleanerMenuView: View {
                 sortMenuButton
             }
 
-            // 刚性 24x24 点击锚点，内部居中自旋，杜绝任何位移跳跃
+            // 刚性 24x24 点击锚点，内部居中自旋，带微交互悬停底衬，杜绝任何位移跳跃
             Button(action: {
                 viewModel.refresh()
             }) {
                 ZStack {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .fill(isHoveringRefresh ? Color.primary.opacity(0.07) : Color.clear)
+
                     Image(systemName: "arrow.clockwise")
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(isHoveringRefresh ? Color.primary : Color.secondary)
                         .rotationEffect(.degrees(viewModel.isWorking ? 360 : 0))
                         .animation(
                             viewModel.isWorking
@@ -98,6 +104,9 @@ public struct TaskCleanerMenuView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .onHover { hovering in
+                isHoveringRefresh = hovering
+            }
             .help(i18n.t(.header_refresh_help))
         }
         .frame(height: 24)
@@ -148,16 +157,27 @@ public struct TaskCleanerMenuView: View {
         } label: {
             ZStack {
                 RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(viewModel.sortMode != .defaultName ? Color(nsColor: .systemBlue).opacity(0.08) : Color.clear)
+                    .fill(
+                        viewModel.sortMode != .defaultName
+                            ? Color(nsColor: .systemBlue).opacity(isHoveringSort ? 0.14 : 0.08)
+                            : (isHoveringSort ? Color.primary.opacity(0.07) : Color.clear)
+                    )
                 Image(systemName: "arrow.up.arrow.down")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(viewModel.sortMode != .defaultName ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary)
+                    .foregroundStyle(
+                        viewModel.sortMode != .defaultName
+                            ? Color(nsColor: .systemBlue).opacity(0.85)
+                            : (isHoveringSort ? Color.primary : Color.secondary)
+                    )
             }
             .frame(width: 24, height: 24, alignment: .center)
             .contentShape(Rectangle())
         }
         .menuStyle(.borderlessButton)
         .menuIndicator(.hidden)
+        .onHover { hovering in
+            isHoveringSort = hovering
+        }
         .help("\(i18n.t(.sort_by)): \(viewModel.sortMode.localizedName(in: i18n))")
     }
 
@@ -209,11 +229,7 @@ public struct TaskCleanerMenuView: View {
                     Button(action: {
                         launchManager.enableFromPrompt()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                            viewModel.statusMessage = i18n.t(.status_launch_enabled)
-                            Task {
-                                try? await Task.sleep(nanoseconds: 2_000_000_000)
-                                viewModel.statusMessage = nil
-                            }
+                            viewModel.showTransientStatus(i18n.t(.status_launch_enabled), duration: 2.0)
                         }
                     }) {
                         Text(i18n.t(.btn_enable))
@@ -274,6 +290,8 @@ public struct TaskCleanerMenuView: View {
         )
     }
 
+    @State private var isHoveringCleanMode: Bool = false
+
     // MARK: - Action Section (结构恒定，去除底层命令字样与注释，自然优雅)
     private var actionSection: some View {
         let hasTargets = (viewModel.summary?.target_count ?? 0) > 0
@@ -305,26 +323,43 @@ public struct TaskCleanerMenuView: View {
 
                     SystemBadge(
                         hasTargets ? i18n.t(.badge_pending) : i18n.t(.badge_protected),
-                        color: hasTargets ? .secondary : Color(nsColor: .systemBlue)
+                        color: hasTargets ? Color(nsColor: .systemBlue) : .secondary
                     )
                 }
 
                 HStack(spacing: 4) {
-                    Button(action: {
-                        viewModel.cleanAll()
-                    }) {
-                        HStack(spacing: 6) {
-                            Spacer()
-                            Image(systemName: hasTargets ? "xmark.circle" : "checkmark.circle")
-                                .font(.system(size: 11.5, weight: .medium))
-                            Text(hasTargets ? i18n.t(.btn_terminate) : i18n.t(.btn_ready))
-                                .font(.system(size: 12, weight: .semibold))
-                            Spacer()
+                    if hasTargets {
+                        Button(action: {
+                            viewModel.cleanAll()
+                        }) {
+                            HStack(spacing: 6) {
+                                Spacer()
+                                Image(systemName: "xmark.circle.fill")
+                                    .font(.system(size: 11.5, weight: .medium))
+                                Text(i18n.t(.btn_terminate))
+                                    .font(.system(size: 12, weight: .semibold))
+                                Spacer()
+                            }
                         }
+                        .buttonStyle(.borderedProminent)
+                        .tint(Color(nsColor: .systemBlue))
+                        .controlSize(.regular)
+                        .disabled(viewModel.isWorking)
+                    } else {
+                        Button(action: {}) {
+                            HStack(spacing: 6) {
+                                Spacer()
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 11.5, weight: .medium))
+                                Text(i18n.t(.btn_ready))
+                                    .font(.system(size: 12, weight: .semibold))
+                                Spacer()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.regular)
+                        .disabled(true)
                     }
-                    .buttonStyle(.bordered)
-                    .controlSize(.regular)
-                    .disabled(!hasTargets || viewModel.isWorking)
 
                     if hasTargets {
                         Menu {
@@ -341,16 +376,23 @@ public struct TaskCleanerMenuView: View {
                         } label: {
                             Image(systemName: "chevron.down")
                                 .font(.system(size: 9, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 22, height: 26)
+                                .foregroundStyle(isHoveringCleanMode ? Color.primary : Color.secondary)
+                                .frame(width: 22, height: 22)
                                 .background(
                                     RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                        .fill(Color.primary.opacity(0.06))
+                                        .fill(Color.primary.opacity(isHoveringCleanMode ? 0.12 : 0.06))
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
                                 )
                         }
                         .menuStyle(.borderlessButton)
                         .menuIndicator(.hidden)
-                        .frame(width: 24, height: 26)
+                        .frame(width: 24, height: 24)
+                        .onHover { hovering in
+                            isHoveringCleanMode = hovering
+                        }
                         .disabled(viewModel.isWorking)
                         .help(i18n.t(.clean_mode_options))
                     }
@@ -453,6 +495,55 @@ public struct TaskCleanerMenuView: View {
         }
     }
 
+    @ViewBuilder
+    private func makeTargetRow(for app: TargetAppEntry) -> some View {
+        NativeTargetRow(
+            app: app,
+            sortMode: viewModel.sortMode,
+            showDetailedMetrics: viewModel.showDetailedMetrics,
+            showAppIdentifier: viewModel.showAppIdentifier,
+            isWorking: viewModel.isWorking,
+            onTerminate: {
+                viewModel.terminateTarget(app)
+            },
+            onWhitelist: {
+                viewModel.whitelistApp(app)
+            },
+            onRevealInFinder: {
+                viewModel.revealInFinder(pid: app.pid)
+            },
+            onCopyId: {
+                viewModel.copyToClipboard(text: app.effectiveIdentifier, label: i18n.t(.status_copied))
+            },
+            onCopyPid: {
+                viewModel.copyToClipboard(text: "\(app.pid)", label: i18n.t(.status_copied))
+            }
+        )
+    }
+
+    @ViewBuilder
+    private func makeProtectedRow(for app: ProtectedAppEntry) -> some View {
+        NativeProtectedRow(
+            app: app,
+            sortMode: viewModel.sortMode,
+            showDetailedMetrics: viewModel.showDetailedMetrics,
+            showAppIdentifier: viewModel.showAppIdentifier,
+            isWorking: viewModel.isWorking,
+            onRemove: {
+                viewModel.unprotectApp(app)
+            },
+            onRevealInFinder: {
+                viewModel.revealInFinder(pid: app.pid)
+            },
+            onCopyId: {
+                viewModel.copyToClipboard(text: app.effectiveIdentifier, label: i18n.t(.status_copied))
+            },
+            onCopyPid: {
+                viewModel.copyToClipboard(text: "\(app.pid)", label: i18n.t(.status_copied))
+            }
+        )
+    }
+
     private func targetAppsList(minHeight: CGFloat) -> some View {
         let targets = viewModel.sortedTargets
         return VStack(spacing: 0) {
@@ -501,29 +592,7 @@ public struct TaskCleanerMenuView: View {
                 .padding(.vertical, 8)
             } else {
                 ForEach(Array(targets.enumerated()), id: \.element.pid) { index, app in
-                    NativeTargetRow(
-                        app: app,
-                        sortMode: viewModel.sortMode,
-                        showDetailedMetrics: viewModel.showDetailedMetrics,
-                        showAppIdentifier: viewModel.showAppIdentifier,
-                        isWorking: viewModel.isWorking,
-                        onTerminate: {
-                            viewModel.terminateTarget(app)
-                        },
-                        onWhitelist: {
-                            viewModel.whitelistApp(app)
-                        },
-                        onRevealInFinder: {
-                            viewModel.revealInFinder(pid: app.pid)
-                        },
-                        onCopyId: {
-                            let identifier = !app.bundle_id.isEmpty ? app.bundle_id : app.name
-                            viewModel.copyToClipboard(text: identifier, label: i18n.t(.status_copied))
-                        },
-                        onCopyPid: {
-                            viewModel.copyToClipboard(text: "\(app.pid)", label: i18n.t(.status_copied))
-                        }
-                    )
+                    makeTargetRow(for: app)
 
                     if index < targets.count - 1 {
                         Divider()
@@ -547,26 +616,7 @@ public struct TaskCleanerMenuView: View {
                     .padding(.vertical, 16)
             } else {
                 ForEach(Array(protectedList.enumerated()), id: \.element.pid) { index, app in
-                    NativeProtectedRow(
-                        app: app,
-                        sortMode: viewModel.sortMode,
-                        showDetailedMetrics: viewModel.showDetailedMetrics,
-                        showAppIdentifier: viewModel.showAppIdentifier,
-                        isWorking: viewModel.isWorking,
-                        onRemove: {
-                            viewModel.unprotectApp(app)
-                        },
-                        onRevealInFinder: {
-                            viewModel.revealInFinder(pid: app.pid)
-                        },
-                        onCopyId: {
-                            let identifier = !app.bundle_id.isEmpty ? app.bundle_id : app.name
-                            viewModel.copyToClipboard(text: identifier, label: i18n.t(.status_copied))
-                        },
-                        onCopyPid: {
-                            viewModel.copyToClipboard(text: "\(app.pid)", label: i18n.t(.status_copied))
-                        }
-                    )
+                    makeProtectedRow(for: app)
 
                     if index < protectedList.count - 1 {
                         Divider()
@@ -605,29 +655,7 @@ public struct TaskCleanerMenuView: View {
                     .padding(.bottom, 2)
 
                     ForEach(Array(targets.enumerated()), id: \.element.pid) { index, app in
-                        NativeTargetRow(
-                            app: app,
-                            sortMode: viewModel.sortMode,
-                            showDetailedMetrics: viewModel.showDetailedMetrics,
-                            showAppIdentifier: viewModel.showAppIdentifier,
-                            isWorking: viewModel.isWorking,
-                            onTerminate: {
-                                viewModel.terminateTarget(app)
-                            },
-                            onWhitelist: {
-                                viewModel.whitelistApp(app)
-                            },
-                            onRevealInFinder: {
-                                viewModel.revealInFinder(pid: app.pid)
-                            },
-                            onCopyId: {
-                                let identifier = !app.bundle_id.isEmpty ? app.bundle_id : app.name
-                                viewModel.copyToClipboard(text: identifier, label: i18n.t(.status_copied))
-                            },
-                            onCopyPid: {
-                                viewModel.copyToClipboard(text: "\(app.pid)", label: i18n.t(.status_copied))
-                            }
-                        )
+                        makeTargetRow(for: app)
 
                         if index < targets.count - 1 {
                             Divider()
@@ -654,26 +682,7 @@ public struct TaskCleanerMenuView: View {
                     .padding(.bottom, 2)
 
                     ForEach(Array(protectedList.enumerated()), id: \.element.pid) { index, app in
-                        NativeProtectedRow(
-                            app: app,
-                            sortMode: viewModel.sortMode,
-                            showDetailedMetrics: viewModel.showDetailedMetrics,
-                            showAppIdentifier: viewModel.showAppIdentifier,
-                            isWorking: viewModel.isWorking,
-                            onRemove: {
-                                viewModel.unprotectApp(app)
-                            },
-                            onRevealInFinder: {
-                                viewModel.revealInFinder(pid: app.pid)
-                            },
-                            onCopyId: {
-                                let identifier = !app.bundle_id.isEmpty ? app.bundle_id : app.name
-                                viewModel.copyToClipboard(text: identifier, label: i18n.t(.status_copied))
-                            },
-                            onCopyPid: {
-                                viewModel.copyToClipboard(text: "\(app.pid)", label: i18n.t(.status_copied))
-                            }
-                        )
+                        makeProtectedRow(for: app)
 
                         if index < protectedList.count - 1 {
                             Divider()
@@ -697,11 +706,8 @@ public struct TaskCleanerMenuView: View {
                 Menu {
                     Button(action: {
                         launchManager.toggle()
-                        viewModel.statusMessage = launchManager.isEnabled ? i18n.t(.status_launch_enabled) : i18n.t(.status_launch_disabled)
-                        Task {
-                            try? await Task.sleep(nanoseconds: 2_000_000_000)
-                            viewModel.statusMessage = nil
-                        }
+                        let msg = launchManager.isEnabled ? i18n.t(.status_launch_enabled) : i18n.t(.status_launch_disabled)
+                        viewModel.showTransientStatus(msg, duration: 2.0)
                     }) {
                         Label(
                             i18n.t(.launch_at_login_menu),
@@ -1000,29 +1006,79 @@ public struct TaskCleanerMenuView: View {
     }
 }
 
-// MARK: - 辅助绘制原生矢量纵向三点图标 (避免 AppKit 丢弃旋转 modifier)
-private func makeVerticalEllipsisImage() -> NSImage {
-    let img = NSImage(size: NSSize(width: 14, height: 16), flipped: false) { rect in
-        let dotRadius: CGFloat = 1.35
-        let centerX = rect.midX
-        let centerY = rect.midY
-        let spacing: CGFloat = 4.2
+// MARK: - 静态缓存原生矢量纵向三点图标 (避免每次列表行重绘时重复分配 NSImage 与 NSBezierPath)
+private enum RowIconAssets {
+    static let verticalEllipsis: NSImage = {
+        let img = NSImage(size: NSSize(width: 14, height: 16), flipped: false) { rect in
+            let dotRadius: CGFloat = 1.35
+            let centerX = rect.midX
+            let centerY = rect.midY
+            let spacing: CGFloat = 4.2
 
-        let dotsY = [centerY + spacing, centerY, centerY - spacing]
-        NSColor.secondaryLabelColor.setFill()
+            let dotsY = [centerY + spacing, centerY, centerY - spacing]
+            NSColor.secondaryLabelColor.setFill()
 
-        for y in dotsY {
-            let dotRect = NSRect(x: centerX - dotRadius, y: y - dotRadius, width: dotRadius * 2, height: dotRadius * 2)
-            let path = NSBezierPath(ovalIn: dotRect)
-            path.fill()
+            for y in dotsY {
+                let dotRect = NSRect(x: centerX - dotRadius, y: y - dotRadius, width: dotRadius * 2, height: dotRadius * 2)
+                let path = NSBezierPath(ovalIn: dotRect)
+                path.fill()
+            }
+            return true
         }
-        return true
-    }
-    img.isTemplate = true
-    return img
+        img.isTemplate = true
+        return img
+    }()
 }
 
-// MARK: - 原生待清场应用行组件 (支持遥测指标显示、多维排序高亮、单独结束与右键上下文，统一右对齐)
+// MARK: - 通用应用图标与多维遥测指标子视图 (消除 NativeTargetRow 与 NativeProtectedRow 的重复布局代码)
+private struct ProcessAppIconView: View {
+    let icon: NSImage
+
+    var body: some View {
+        Image(nsImage: icon)
+            .resizable()
+            .frame(width: 22, height: 22)
+            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
+            )
+    }
+}
+
+private struct ProcessTelemetryInlineView: View {
+    let memoryBytes: UInt64?
+    let cpuPercent: Double?
+    let windowCount: Int?
+    let sortMode: ProcessSortMode
+
+    var body: some View {
+        HStack(spacing: 4) {
+            Text(ProcessTelemetrySampler.formatMemory(memoryBytes))
+                .foregroundStyle(sortMode == .memory ? Color(nsColor: .systemBlue).opacity(0.85) : Color.secondary.opacity(0.75))
+                .fontWeight(sortMode == .memory ? .medium : .regular)
+
+            Text("·")
+                .foregroundStyle(Color.secondary.opacity(0.3))
+
+            Text(ProcessTelemetrySampler.formatCpu(cpuPercent))
+                .foregroundStyle(sortMode == .cpu ? Color(nsColor: .systemBlue).opacity(0.85) : Color.secondary.opacity(0.75))
+                .fontWeight(sortMode == .cpu ? .medium : .regular)
+
+            Text("·")
+                .foregroundStyle(Color.secondary.opacity(0.3))
+
+            let winUnit = (windowCount ?? 0) <= 1 ? I18n.shared.t(.unit_window_singular) : I18n.shared.t(.unit_windows)
+            Text(ProcessTelemetrySampler.formatWindows(windowCount, unit: winUnit))
+                .foregroundStyle(sortMode == .windows ? Color(nsColor: .systemBlue).opacity(0.85) : Color.secondary.opacity(0.75))
+                .fontWeight(sortMode == .windows ? .medium : .regular)
+        }
+        .font(.system(size: 9, design: .monospaced))
+        .lineLimit(1)
+    }
+}
+
+// MARK: - 原生待清场应用行组件 (支持遥测指标显示、多维排序高亮、悬停交互反馈、单独结束与右键上下文)
 struct NativeTargetRow: View {
     let app: TargetAppEntry
     let sortMode: ProcessSortMode
@@ -1035,16 +1091,12 @@ struct NativeTargetRow: View {
     let onCopyId: () -> Void
     let onCopyPid: () -> Void
 
+    @State private var isHovered: Bool = false
+    @State private var isTrashHovered: Bool = false
+
     var body: some View {
         HStack(spacing: 8) {
-            Image(nsImage: app.appIcon)
-                .resizable()
-                .frame(width: 22, height: 22)
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                )
+            ProcessAppIconView(icon: app.appIcon)
 
             VStack(alignment: .leading, spacing: 1.5) {
                 Text(app.localizedName(in: I18n.shared))
@@ -1060,43 +1112,35 @@ struct NativeTargetRow: View {
                 }
 
                 if showDetailedMetrics {
-                    HStack(spacing: 4) {
-                        Text(ProcessTelemetrySampler.formatMemory(app.memory_bytes))
-                            .foregroundStyle(sortMode == .memory ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
-                            .fontWeight(sortMode == .memory ? .medium : .regular)
-
-                        Text("·")
-                            .foregroundStyle(Color.secondary.opacity(0.3))
-
-                        Text(ProcessTelemetrySampler.formatCpu(app.cpu_percent))
-                            .foregroundStyle(sortMode == .cpu ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
-                            .fontWeight(sortMode == .cpu ? .medium : .regular)
-
-                        Text("·")
-                            .foregroundStyle(Color.secondary.opacity(0.3))
-
-                        let winUnit = (app.window_count ?? 0) <= 1 ? I18n.shared.t(.unit_window_singular) : I18n.shared.t(.unit_windows)
-                        Text(ProcessTelemetrySampler.formatWindows(app.window_count, unit: winUnit))
-                            .foregroundStyle(sortMode == .windows ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
-                            .fontWeight(sortMode == .windows ? .medium : .regular)
-                    }
-                    .font(.system(size: 9, design: .monospaced))
-                    .lineLimit(1)
+                    ProcessTelemetryInlineView(
+                        memoryBytes: app.memory_bytes,
+                        cpuPercent: app.cpu_percent,
+                        windowCount: app.window_count,
+                        sortMode: sortMode
+                    )
                 }
             }
 
             Spacer()
 
             HStack(spacing: 0) {
-                // 1. 单独结束任务按钮 (小垃圾桶图标)
+                // 1. 单独结束任务按钮 (小垃圾桶图标，支持悬停高亮反馈)
                 Button(action: onTerminate) {
-                    Image(systemName: "trash")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(isTrashHovered ? Color(nsColor: .systemRed).opacity(0.12) : Color.clear)
+
+                        Image(systemName: "trash")
+                            .font(.system(size: 11))
+                            .foregroundStyle(isTrashHovered ? Color(nsColor: .systemRed) : Color.secondary)
+                    }
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    isTrashHovered = hovering
+                }
                 .help(I18n.shared.t(.action_terminate_help))
                 .disabled(isWorking)
 
@@ -1121,7 +1165,7 @@ struct NativeTargetRow: View {
                         Label(I18n.shared.t(.action_copy_pid), systemImage: "number")
                     }
                 } label: {
-                    Image(nsImage: makeVerticalEllipsisImage())
+                    Image(nsImage: RowIconAssets.verticalEllipsis)
                         .frame(width: 14, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -1136,8 +1180,16 @@ struct NativeTargetRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4.5)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isHovered ? Color.primary.opacity(0.045) : Color.clear)
+                .padding(.horizontal, 4)
+        )
         .contentShape(Rectangle())
-        .help(app.bundle_id.isEmpty ? "PID: \(app.pid)" : "\(app.bundle_id) (PID: \(app.pid))")
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .help(app.tooltipText)
         .contextMenu {
             Button(action: onTerminate) {
                 Label(I18n.shared.t(.action_terminate_app), systemImage: "trash")
@@ -1164,7 +1216,7 @@ struct NativeTargetRow: View {
     }
 }
 
-// MARK: - 原生受保护应用行组件 (支持遥测指标显示、多维排序高亮、统一右对齐基线与右键上下文菜单)
+// MARK: - 原生受保护应用行组件 (支持遥测指标显示、多维排序高亮、悬停交互反馈、统一右对齐基线与右键上下文菜单)
 struct NativeProtectedRow: View {
     let app: ProtectedAppEntry
     let sortMode: ProcessSortMode
@@ -1176,16 +1228,12 @@ struct NativeProtectedRow: View {
     let onCopyId: () -> Void
     let onCopyPid: () -> Void
 
+    @State private var isHovered: Bool = false
+    @State private var isRemoveHovered: Bool = false
+
     var body: some View {
         HStack(spacing: 8) {
-            Image(nsImage: app.appIcon)
-                .resizable()
-                .frame(width: 22, height: 22)
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
-                )
+            ProcessAppIconView(icon: app.appIcon)
 
             VStack(alignment: .leading, spacing: 1.5) {
                 HStack(spacing: 5) {
@@ -1195,9 +1243,9 @@ struct NativeProtectedRow: View {
                         .lineLimit(1)
 
                     Text(I18n.shared.localizeTier(app.tier, id: app.tier_id))
-                        .font(.system(size: 8.5))
+                        .font(.system(size: 8.5, weight: .medium))
                         .foregroundStyle(Color.secondary)
-                        .padding(.horizontal, 4)
+                        .padding(.horizontal, 4.5)
                         .padding(.vertical, 0.5)
                         .background(
                             Capsule()
@@ -1213,43 +1261,35 @@ struct NativeProtectedRow: View {
                 }
 
                 if showDetailedMetrics {
-                    HStack(spacing: 4) {
-                        Text(ProcessTelemetrySampler.formatMemory(app.memory_bytes))
-                            .foregroundStyle(sortMode == .memory ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
-                            .fontWeight(sortMode == .memory ? .medium : .regular)
-
-                        Text("·")
-                            .foregroundStyle(Color.secondary.opacity(0.3))
-
-                        Text(ProcessTelemetrySampler.formatCpu(app.cpu_percent))
-                            .foregroundStyle(sortMode == .cpu ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
-                            .fontWeight(sortMode == .cpu ? .medium : .regular)
-
-                        Text("·")
-                            .foregroundStyle(Color.secondary.opacity(0.3))
-
-                        let winUnit = (app.window_count ?? 0) <= 1 ? I18n.shared.t(.unit_window_singular) : I18n.shared.t(.unit_windows)
-                        Text(ProcessTelemetrySampler.formatWindows(app.window_count, unit: winUnit))
-                            .foregroundStyle(sortMode == .windows ? Color(nsColor: .systemBlue).opacity(0.8) : Color.secondary.opacity(0.7))
-                            .fontWeight(sortMode == .windows ? .medium : .regular)
-                    }
-                    .font(.system(size: 9, design: .monospaced))
-                    .lineLimit(1)
+                    ProcessTelemetryInlineView(
+                        memoryBytes: app.memory_bytes,
+                        cpuPercent: app.cpu_percent,
+                        windowCount: app.window_count,
+                        sortMode: sortMode
+                    )
                 }
             }
 
             Spacer()
 
             HStack(spacing: 0) {
-                // 1. 快捷移出受保护按钮 (盾牌划线图标，22x22 对齐)
+                // 1. 快捷移出受保护按钮 (盾牌划线图标，22x22 对齐，带悬停反馈)
                 Button(action: onRemove) {
-                    Image(systemName: "shield.slash")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4, style: .continuous)
+                            .fill(isRemoveHovered ? Color(nsColor: .systemOrange).opacity(0.12) : Color.clear)
+
+                        Image(systemName: "shield.slash")
+                            .font(.system(size: 11))
+                            .foregroundStyle(isRemoveHovered ? Color(nsColor: .systemOrange) : Color.secondary)
+                    }
+                    .frame(width: 22, height: 22)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .onHover { hovering in
+                    isRemoveHovered = hovering
+                }
                 .help(I18n.shared.t(.action_remove_whitelist))
                 .disabled(isWorking)
 
@@ -1274,7 +1314,7 @@ struct NativeProtectedRow: View {
                         Label(I18n.shared.t(.action_copy_pid), systemImage: "number")
                     }
                 } label: {
-                    Image(nsImage: makeVerticalEllipsisImage())
+                    Image(nsImage: RowIconAssets.verticalEllipsis)
                         .frame(width: 14, height: 22)
                         .contentShape(Rectangle())
                 }
@@ -1289,8 +1329,16 @@ struct NativeProtectedRow: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 4.5)
+        .background(
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .fill(isHovered ? Color.primary.opacity(0.045) : Color.clear)
+                .padding(.horizontal, 4)
+        )
         .contentShape(Rectangle())
-        .help(app.bundle_id.isEmpty ? "PID: \(app.pid)" : "\(app.bundle_id) (PID: \(app.pid))")
+        .onHover { hovering in
+            isHovered = hovering
+        }
+        .help(app.tooltipText)
         .contextMenu {
             Button(action: onRemove) {
                 Label(I18n.shared.t(.action_remove_whitelist), systemImage: "shield.slash")

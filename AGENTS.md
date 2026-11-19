@@ -109,6 +109,16 @@ This document defines the architectural conventions, engineering rules, and hard
   * Always sum aggregated memory (RSS) and CPU across all associated sub-processes.
   * `scripts/build_app.sh` must automatically check and compile the latest `mtc` Rust engine whenever core or CLI source files are newer than the target binary.
 
+### J. Component Modularity, Icon Caching & Transient Status Debouncing
+* **Problem**:
+  1. Re-allocating `NSImage` icons (`NSWorkspace.shared.icon(forFile:)`) or vector `NSBezierPath` ellipsis images on every SwiftUI row render causes unnecessary CPU/disk overhead during 2-second live telemetry updates and scrolling.
+  2. Launching uncancelled `Task { try? await Task.sleep(...); statusMessage = nil }` blocks across multiple user actions causes race conditions where an earlier task prematurely clears a newer status message.
+  3. Running `AccessibilityManager` ambient 1-second timers indefinitely after TCC trust is already granted wastes background main-thread wakeups.
+* **Rule**:
+  * Conform all process entry models to `ProcessSortableEntry` and use `AppIconCache.shared` (`NSCache<NSString, NSImage>`) plus static template assets (`RowIconAssets.verticalEllipsis`).
+  * Route all temporary status feedback through `TaskCleanerViewModel.showTransientStatus(_:duration:)`, which cancels any in-flight `statusDismissTask` before scheduling a new dismissal.
+  * In `AccessibilityManager`, automatically stop `pollTimer` and `burstTimer` once `isTrusted == true`, relying on `com.apple.accessibility.api` notifications and window-key checks to re-verify trust.
+
 ---
 
 ## 4. Build & Verification Tiering (CRITICAL EFFICIENCY RULE)

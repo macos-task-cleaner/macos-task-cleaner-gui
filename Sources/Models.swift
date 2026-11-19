@@ -30,7 +30,72 @@ public enum ProcessSortMode: String, CaseIterable, Identifiable, Codable {
     public var id: String { rawValue }
 }
 
-public struct TargetAppEntry: Codable, Identifiable, Equatable {
+/// 统一进程排序与展示条目协议，消除 TargetAppEntry 与 ProtectedAppEntry 的重复逻辑
+public protocol ProcessSortableEntry: Identifiable, Equatable {
+    var pid: Int { get }
+    var name: String { get }
+    var bundle_id: String { get }
+    var memory_bytes: UInt64? { get set }
+    var cpu_percent: Double? { get set }
+    var window_count: Int? { get set }
+    var composite_score: Double? { get set }
+    var appIcon: NSImage { get }
+}
+
+extension ProcessSortableEntry {
+    @MainActor
+    public func localizedName(in i18n: I18n) -> String {
+        AppDisplayNameResolver.shared.resolve(
+            bundleId: bundle_id,
+            fallback: name,
+            language: i18n.currentLanguage
+        )
+    }
+
+    public var effectiveIdentifier: String {
+        !bundle_id.isEmpty ? bundle_id : name
+    }
+
+    public var tooltipText: String {
+        bundle_id.isEmpty ? "PID: \(pid)" : "\(bundle_id) (PID: \(pid))"
+    }
+}
+
+/// 线程安全的应用图标内存缓存，避免列表高频重绘与滚动时重复触发磁盘 I/O
+public final class AppIconCache {
+    public static let shared = AppIconCache()
+    private let cache = NSCache<NSString, NSImage>()
+    private let fallbackIcon: NSImage
+
+    private init() {
+        cache.countLimit = 128
+        fallbackIcon = NSWorkspace.shared.icon(for: .application)
+    }
+
+    public func icon(forPid pid: Int, bundleId: String) -> NSImage {
+        let key = (!bundleId.isEmpty ? bundleId : "pid_\(pid)") as NSString
+        if let cached = cache.object(forKey: key) {
+            return cached
+        }
+
+        if let runningApp = NSRunningApplication(processIdentifier: pid_t(pid)),
+           let icon = runningApp.icon {
+            cache.setObject(icon, forKey: key)
+            return icon
+        }
+
+        if !bundleId.isEmpty,
+           let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleId) {
+            let icon = NSWorkspace.shared.icon(forFile: url.path)
+            cache.setObject(icon, forKey: key)
+            return icon
+        }
+
+        return fallbackIcon
+    }
+}
+
+public struct TargetAppEntry: Codable, Identifiable, Equatable, ProcessSortableEntry {
     public var id: Int { pid }
     public let pid: Int
     public let name: String
@@ -72,18 +137,11 @@ public struct TargetAppEntry: Codable, Identifiable, Equatable {
     }
 
     public var appIcon: NSImage {
-        if let runningApp = NSRunningApplication(processIdentifier: pid_t(pid)),
-           let icon = runningApp.icon {
-            return icon
-        }
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle_id) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return NSWorkspace.shared.icon(for: .application)
+        AppIconCache.shared.icon(forPid: pid, bundleId: bundle_id)
     }
 }
 
-public struct ProtectedAppEntry: Codable, Identifiable, Equatable {
+public struct ProtectedAppEntry: Codable, Identifiable, Equatable, ProcessSortableEntry {
     public var id: Int { pid }
     public let pid: Int
     public let name: String
@@ -133,35 +191,6 @@ public struct ProtectedAppEntry: Codable, Identifiable, Equatable {
     }
 
     public var appIcon: NSImage {
-        if let runningApp = NSRunningApplication(processIdentifier: pid_t(pid)),
-           let icon = runningApp.icon {
-            return icon
-        }
-        if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundle_id) {
-            return NSWorkspace.shared.icon(forFile: url.path)
-        }
-        return NSWorkspace.shared.icon(for: .application)
-    }
-}
-
-extension TargetAppEntry {
-    @MainActor
-    public func localizedName(in i18n: I18n) -> String {
-        AppDisplayNameResolver.shared.resolve(
-            bundleId: bundle_id,
-            fallback: name,
-            language: i18n.currentLanguage
-        )
-    }
-}
-
-extension ProtectedAppEntry {
-    @MainActor
-    public func localizedName(in i18n: I18n) -> String {
-        AppDisplayNameResolver.shared.resolve(
-            bundleId: bundle_id,
-            fallback: name,
-            language: i18n.currentLanguage
-        )
+        AppIconCache.shared.icon(forPid: pid, bundleId: bundle_id)
     }
 }

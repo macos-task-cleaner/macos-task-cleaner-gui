@@ -4,7 +4,17 @@ import AppKit
 public class MTCBridge {
     public static let shared = MTCBridge()
 
+    private var cachedBinaryPath: String?
+    private let lock = NSLock()
+
     public func findMTCBinary() -> String? {
+        lock.lock()
+        if let cached = cachedBinaryPath, FileManager.default.isExecutableFile(atPath: cached) {
+            lock.unlock()
+            return cached
+        }
+        lock.unlock()
+
         let bundleInternal = Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/mtc").path
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         let possiblePaths = [
@@ -18,6 +28,9 @@ public class MTCBridge {
 
         for path in possiblePaths {
             if FileManager.default.isExecutableFile(atPath: path) {
+                lock.lock()
+                cachedBinaryPath = path
+                lock.unlock()
                 return path
             }
         }
@@ -34,6 +47,9 @@ public class MTCBridge {
             let data = pipe.fileHandleForReading.readDataToEndOfFile()
             if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
                !output.isEmpty && FileManager.default.isExecutableFile(atPath: output) {
+                lock.lock()
+                cachedBinaryPath = output
+                lock.unlock()
                 return output
             }
         }
