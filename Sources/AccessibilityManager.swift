@@ -21,7 +21,9 @@ public final class AccessibilityManager: ObservableObject {
         self.isTrusted = Self.queryIsTrusted(prompt: false)
 
         setupNotificationObservers()
-        startAmbientPolling()
+        if !self.isTrusted {
+            startAmbientPolling()
+        }
     }
 
     private func setupNotificationObservers() {
@@ -43,8 +45,11 @@ public final class AccessibilityManager: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refreshStatus()
-                self?.startBurstPolling(duration: 4.0, interval: 0.3)
+                guard let self = self else { return }
+                self.refreshStatus()
+                if !self.isTrusted {
+                    self.startBurstPolling(duration: 4.0, interval: 0.3)
+                }
             }
         }
 
@@ -55,8 +60,11 @@ public final class AccessibilityManager: ObservableObject {
             queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
-                self?.refreshStatus()
-                self?.startBurstPolling(duration: 4.0, interval: 0.3)
+                guard let self = self else { return }
+                self.refreshStatus()
+                if !self.isTrusted {
+                    self.startBurstPolling(duration: 4.0, interval: 0.3)
+                }
             }
         }
     }
@@ -82,12 +90,12 @@ public final class AccessibilityManager: ObservableObject {
             if trusted {
                 self.isPromptDismissed = false
                 UserDefaults.standard.set(false, forKey: dismissedKey)
+                stopAmbientPolling()
+                stopBurstPolling()
                 GlobalShortcutManager.shared.registerCurrentShortcut()
-                TaskCleanerViewModel.shared?.statusMessage = I18n.shared.t(.status_accessibility_granted)
-                Task {
-                    try? await Task.sleep(nanoseconds: 2_500_000_000)
-                    TaskCleanerViewModel.shared?.statusMessage = nil
-                }
+                TaskCleanerViewModel.shared?.showTransientStatus(I18n.shared.t(.status_accessibility_granted), duration: 2.5)
+            } else {
+                startAmbientPolling()
             }
         }
         return trusted
@@ -100,7 +108,7 @@ public final class AccessibilityManager: ObservableObject {
 
     /// 启动常态心跳检测 (采用 .common RunLoop 模式确保菜单展开时不被挂起)
     public func startAmbientPolling() {
-        guard pollTimer == nil else { return }
+        guard pollTimer == nil, !isTrusted else { return }
         let timer = Timer(timeInterval: 1.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.refreshStatus()

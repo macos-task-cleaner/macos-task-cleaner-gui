@@ -61,6 +61,7 @@ public class TaskCleanerViewModel: ObservableObject {
     private var hasCapturedSessionCapacity: Bool = false
     private var timerCancellable: AnyCancellable?
     private var workspaceObservers: [NSObjectProtocol] = []
+    private var statusDismissTask: Task<Void, Never>?
 
     public init() {
         let storedSort = UserDefaults.standard.string(forKey: sortModeKey) ?? ProcessSortMode.composite.rawValue
@@ -277,53 +278,30 @@ public class TaskCleanerViewModel: ObservableObject {
         workspaceObservers.removeAll()
     }
 
-    // MARK: - 多维指标排序系统 (5 种排序模式)
+    // MARK: - 统一状态消息管理 (带自动取消防抖，消除多任务并发覆盖竞态)
+    public func showTransientStatus(_ message: String, duration: TimeInterval = 2.0) {
+        statusDismissTask?.cancel()
+        statusMessage = message
+        let nanos = UInt64(max(0.5, duration) * 1_000_000_000)
+        statusDismissTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: nanos)
+            guard !Task.isCancelled else { return }
+            self?.statusMessage = nil
+        }
+    }
+
+    // MARK: - 多维指标排序系统 (5 种排序模式，基于 ProcessSortableEntry 泛型复用)
     public var sortedTargets: [TargetAppEntry] {
         guard let list = summary?.targets else { return [] }
-        return sortTargets(list, mode: sortMode)
+        return sortEntries(list, mode: sortMode)
     }
 
     public var sortedProtected: [ProtectedAppEntry] {
         guard let list = summary?.protected_apps else { return [] }
-        return sortProtected(list, mode: sortMode)
+        return sortEntries(list, mode: sortMode)
     }
 
-    private func sortTargets(_ list: [TargetAppEntry], mode: ProcessSortMode) -> [TargetAppEntry] {
-        switch mode {
-        case .composite:
-            return list.sorted {
-                let s0 = $0.composite_score ?? 0.0
-                let s1 = $1.composite_score ?? 0.0
-                if abs(s0 - s1) > 0.001 { return s0 > s1 }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
-        case .memory:
-            return list.sorted {
-                let m0 = $0.memory_bytes ?? 0
-                let m1 = $1.memory_bytes ?? 0
-                if m0 != m1 { return m0 > m1 }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
-        case .cpu:
-            return list.sorted {
-                let c0 = $0.cpu_percent ?? 0.0
-                let c1 = $1.cpu_percent ?? 0.0
-                if abs(c0 - c1) > 0.05 { return c0 > c1 }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
-        case .windows:
-            return list.sorted {
-                let w0 = $0.window_count ?? 0
-                let w1 = $1.window_count ?? 0
-                if w0 != w1 { return w0 > w1 }
-                return $0.name.localizedStandardCompare($1.name) == .orderedAscending
-            }
-        case .defaultName:
-            return list.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        }
-    }
-
-    private func sortProtected(_ list: [ProtectedAppEntry], mode: ProcessSortMode) -> [ProtectedAppEntry] {
+    private func sortEntries<T: ProcessSortableEntry>(_ list: [T], mode: ProcessSortMode) -> [T] {
         switch mode {
         case .composite:
             return list.sorted {
@@ -361,6 +339,7 @@ public class TaskCleanerViewModel: ObservableObject {
     // MARK: - 核心执行操作
     public func cleanAll(force: Bool = false, purge: Bool = false) {
         guard !isWorking else { return }
+        statusDismissTask?.cancel()
         isWorking = true
         statusMessage = I18n.shared.t(.status_terminating_all)
 
@@ -369,17 +348,13 @@ public class TaskCleanerViewModel: ObservableObject {
                 MTCBridge.shared.executeClean(force: force, purge: purge)
             }.value
 
-            if success {
-                self.statusMessage = I18n.shared.t(.status_all_terminated)
-            } else {
-                self.statusMessage = I18n.shared.t(.status_some_unresponsive)
-            }
-
             self.isWorking = false
             self.refresh(silent: true)
 
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            self.statusMessage = nil
+            let finalMsg = success
+                ? I18n.shared.t(.status_all_terminated)
+                : I18n.shared.t(.status_some_unresponsive)
+            self.showTransientStatus(finalMsg, duration: 2.0)
         }
     }
 
@@ -390,63 +365,61 @@ public class TaskCleanerViewModel: ObservableObject {
 
     public func terminateTarget(_ app: TargetAppEntry) {
         guard !isWorking else { return }
+        statusDismissTask?.cancel()
         isWorking = true
-        statusMessage = I18n.shared.format(.status_terminating_app, app.localizedName(in: I18n.shared))
+        let appName = app.localizedName(in: I18n.shared)
+        statusMessage = I18n.shared.format(.status_terminating_app, appName)
 
         Task {
             let success = await Task.detached {
                 MTCBridge.shared.terminateProcess(pid: app.pid)
             }.value
 
-            if success {
-                self.statusMessage = I18n.shared.format(.status_app_terminated, app.localizedName(in: I18n.shared))
-            } else {
-                self.statusMessage = I18n.shared.format(.status_app_terminate_failed, app.localizedName(in: I18n.shared))
-            }
-
             self.isWorking = false
             self.refresh(silent: true)
 
-            try? await Task.sleep(nanoseconds: 1_500_000_000)
-            self.statusMessage = nil
+            let finalMsg = success
+                ? I18n.shared.format(.status_app_terminated, appName)
+                : I18n.shared.format(.status_app_terminate_failed, appName)
+            self.showTransientStatus(finalMsg, duration: 1.5)
         }
     }
 
     public func whitelistApp(_ app: TargetAppEntry) {
         guard !isWorking else { return }
+        statusDismissTask?.cancel()
         isWorking = true
-        statusMessage = I18n.shared.format(.status_added_whitelist, app.localizedName(in: I18n.shared))
+        let appName = app.localizedName(in: I18n.shared)
+        statusMessage = I18n.shared.format(.status_added_whitelist, appName)
 
         Task {
-            let identifier = !app.bundle_id.isEmpty ? app.bundle_id : app.name
+            let identifier = app.effectiveIdentifier
             _ = await Task.detached {
                 MTCBridge.shared.addToWhitelist(identifier: identifier)
             }.value
 
             self.isWorking = false
             self.refresh(silent: true)
-
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            self.statusMessage = nil
+            self.showTransientStatus(I18n.shared.format(.status_added_whitelist, appName), duration: 2.0)
         }
     }
 
     public func unprotectApp(_ app: ProtectedAppEntry) {
         guard !isWorking else { return }
+        statusDismissTask?.cancel()
         isWorking = true
-        statusMessage = I18n.shared.format(.status_removed_whitelist, app.localizedName(in: I18n.shared))
+        let appName = app.localizedName(in: I18n.shared)
+        statusMessage = I18n.shared.format(.status_removed_whitelist, appName)
 
         Task {
-            let identifier = !app.bundle_id.isEmpty ? app.bundle_id : app.name
+            let identifier = app.effectiveIdentifier
             _ = await Task.detached {
                 MTCBridge.shared.removeFromWhitelist(identifier: identifier)
             }.value
 
             self.isWorking = false
             self.refresh(silent: true)
-
-            try? await Task.sleep(nanoseconds: 2_000_000_000)
-            self.statusMessage = nil
+            self.showTransientStatus(I18n.shared.format(.status_removed_whitelist, appName), duration: 2.0)
         }
     }
 
@@ -475,7 +448,7 @@ public class TaskCleanerViewModel: ObservableObject {
         do {
             let (symlinkPath, isInPath) = try CliIntegrationManager.shared.installSymlink(to: location)
             refreshCliStatus()
-            self.statusMessage = I18n.shared.t(.status_cli_installed)
+            showTransientStatus(I18n.shared.t(.status_cli_installed), duration: 3.0)
 
             let alert = NSAlert()
             if !isInPath {
@@ -489,7 +462,7 @@ public class TaskCleanerViewModel: ObservableObject {
                 let response = alert.runModal()
                 if response == .alertFirstButtonReturn {
                     if CliIntegrationManager.shared.appendPathToZshrcIfNeeded(location: location) {
-                        self.statusMessage = I18n.shared.t(.status_zshrc_updated)
+                        showTransientStatus(I18n.shared.t(.status_zshrc_updated), duration: 3.0)
                         refreshCliStatus()
                     }
                 }
@@ -502,18 +475,9 @@ public class TaskCleanerViewModel: ObservableObject {
                 NSApp.activate(ignoringOtherApps: true)
                 alert.runModal()
             }
-
-            Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                self.statusMessage = nil
-            }
         } catch {
-            self.statusMessage = "\(I18n.shared.t(.status_cli_install_failed)): \(error.localizedDescription)"
+            showTransientStatus("\(I18n.shared.t(.status_cli_install_failed)): \(error.localizedDescription)", duration: 3.0)
             refreshCliStatus()
-            Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                self.statusMessage = nil
-            }
         }
     }
 
@@ -525,17 +489,9 @@ public class TaskCleanerViewModel: ObservableObject {
         do {
             try CliIntegrationManager.shared.uninstallSymlinks()
             refreshCliStatus()
-            self.statusMessage = I18n.shared.t(.status_cli_uninstalled)
-            Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                self.statusMessage = nil
-            }
+            showTransientStatus(I18n.shared.t(.status_cli_uninstalled), duration: 3.0)
         } catch {
-            self.statusMessage = error.localizedDescription
-            Task {
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
-                self.statusMessage = nil
-            }
+            showTransientStatus(error.localizedDescription, duration: 3.0)
         }
     }
 
@@ -573,11 +529,7 @@ public class TaskCleanerViewModel: ObservableObject {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         if let label = label {
-            self.statusMessage = label
-            Task {
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                self.statusMessage = nil
-            }
+            showTransientStatus(label, duration: 1.5)
         }
     }
 

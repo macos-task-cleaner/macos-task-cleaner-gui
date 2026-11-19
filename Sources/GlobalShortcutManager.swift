@@ -167,7 +167,7 @@ public class GlobalShortcutManager: ObservableObject {
 
         registerCurrentShortcut()
         AccessibilityManager.shared.resetDismissal()
-        TaskCleanerViewModel.shared?.statusMessage = I18n.shared.format(.status_shortcut_bound, preset.displayString)
+        TaskCleanerViewModel.shared?.showTransientStatus(I18n.shared.format(.status_shortcut_bound, preset.displayString), duration: 2.0)
     }
 
     public func setCustomShortcut(keyCode: UInt32, modifiers: UInt32, display: String) {
@@ -183,14 +183,14 @@ public class GlobalShortcutManager: ObservableObject {
 
         registerCurrentShortcut()
         AccessibilityManager.shared.resetDismissal()
-        TaskCleanerViewModel.shared?.statusMessage = I18n.shared.format(.status_shortcut_bound, display)
+        TaskCleanerViewModel.shared?.showTransientStatus(I18n.shared.format(.status_shortcut_bound, display), duration: 2.0)
     }
 
     public func disableShortcut() {
         self.isEnabled = false
         UserDefaults.standard.set(false, forKey: userDefaultsKeyEnabled)
         unregisterCurrentShortcut()
-        TaskCleanerViewModel.shared?.statusMessage = I18n.shared.t(.status_shortcut_disabled)
+        TaskCleanerViewModel.shared?.showTransientStatus(I18n.shared.t(.status_shortcut_disabled), duration: 2.0)
     }
 
     public var currentKeyCode: UInt32 {

@@ -1,0 +1,85 @@
+name: CI Build
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-macos:
+    name: Build & Package TaskCleaner.app
+    runs-on: macos-15
+
+    steps:
+      - name: Checkout GUI Repository
+        uses: actions/checkout@v4
+        with:
+          path: macos-task-cleaner-gui
+
+      - name: Checkout Core Repository
+        uses: actions/checkout@v4
+        with:
+          repository: macos-task-cleaner/macos-task-cleaner-core
+          path: macos-task-cleaner-core
+
+      - name: Checkout CLI Repository
+        uses: actions/checkout@v4
+        with:
+          repository: macos-task-cleaner/macos-task-cleaner-cli
+          path: macos-task-cleaner-cli
+
+      - name: Verify Swift Package Build
+        working-directory: macos-task-cleaner-gui
+        run: swift build
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Compile Multi-Architecture mtc Engine
+        working-directory: macos-task-cleaner-cli
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+          cargo build --release --target x86_64-apple-darwin
+          mkdir -p dist/arm64 dist/x86_64 dist/universal target/release
+          cp target/aarch64-apple-darwin/release/mtc dist/arm64/mtc
+          cp target/x86_64-apple-darwin/release/mtc dist/x86_64/mtc
+          lipo -create \
+            target/aarch64-apple-darwin/release/mtc \
+            target/x86_64-apple-darwin/release/mtc \
+            -output dist/universal/mtc
+          cp dist/universal/mtc target/release/mtc
+          chmod +x dist/arm64/mtc dist/x86_64/mtc dist/universal/mtc target/release/mtc
+
+      - name: Install create-dmg Packaging Utility
+        run: |
+          brew install create-dmg || true
+
+      - name: Build and Package All Architectures
+        working-directory: macos-task-cleaner-gui
+        run: |
+          chmod +x scripts/build_app.sh
+          ./scripts/build_app.sh all
+
+      - name: Upload CI Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: taskcleaner-ci-${{ github.run_number }}-${{ github.sha }}
+          path: |
+            macos-task-cleaner-gui/build/*.dmg
+            macos-task-cleaner-gui/build/*.dmg.sha256
+            macos-task-cleaner-gui/build/*.zip
+            macos-task-cleaner-gui/build/*.zip.sha256
+          retention-days: 7
